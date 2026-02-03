@@ -50,7 +50,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                   <button
                     key={item.id}
                     onClick={() => setCurrentPage(item.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors ${
                       currentPage === item.id
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
