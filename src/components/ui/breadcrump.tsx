@@ -1,6 +1,6 @@
 import * as React from "react"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
-import { Slot } from "radix-ui"
+import * as SlotPrimitive from "@radix-ui/react-slot"
 
 import { cn } from "@/lib/utils"
 
@@ -31,7 +31,7 @@ function BreadcrumbLink({
 }: React.ComponentProps<"a"> & {
   asChild?: boolean
 }) {
-  const Comp = asChild ? Slot.Root : "a"
+  const Comp = asChild ? SlotPrimitive.Slot : "a"
 
   return (
     <Comp
