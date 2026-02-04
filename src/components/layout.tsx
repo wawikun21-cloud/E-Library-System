@@ -43,7 +43,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
       {/* Altitude Gradient Background */}
       <div className="fixed inset-0 -z-10">
         {/* Light Mode: Gradient 1 → 2 → 3 → 4 */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F2E6EE] via-[#FFCCF3] via-[#9770FF] to-[#0033FF] dark:from-[#1a1a2e] dark:via-[#16213e] dark:to-[#0f3460]">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#F2E6EE] via-[#FFCCF3] to-[#0033FF] dark:from-[#1a1a2e] dark:via-[#16213e] dark:to-[#0f3460]">
           {/* Animated gradient orbs for depth */}
           <div className="absolute top-0 -left-4 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob"
                style={{ background: 'linear-gradient(135deg, #9770FF 0%, #FFCCF3 100%)' }}></div>
