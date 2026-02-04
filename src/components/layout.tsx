@@ -58,8 +58,24 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/20 dark:border-white/10 bg-white/10 dark:bg-black/20 backdrop-blur-xl">
         <div className="container mx-auto px-10">
           <div className="flex h-20 items-center justify-between">
-            {/* Logo/Brand - Left Side with Lexora Logo */}
+            {/* Mobile Menu Button + Logo - LEFT SIDE */}
             <div className="flex items-center gap-3">
+              {/* Animated Hamburger Menu - Mobile Only */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="md:hidden text-black dark:text-white hover:bg-white/10 transition-all duration-200"
+              >
+                <div className="relative w-5 h-5 flex flex-col justify-center gap-1">
+                  <span className={`block h-0.5 w-5 bg-current transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`}></span>
+                  <span className={`block h-0.5 w-5 bg-current transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : 'opacity-100'}`}></span>
+                  <span className={`block h-0.5 w-5 bg-current transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-1.5' : ''}`}></span>
+                </div>
+                <span className="sr-only">Open menu</span>
+              </Button>
+
+              {/* Logo */}
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
                 viewBox="0 0 1500 1500" 
@@ -84,7 +100,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 <path fill="#ffcc00" d="M 232.304688 899.429688 C 232.304688 899.429688 243.832031 925.25 247.566406 953.1875 C 251.300781 981.117188 247.238281 1011.160156 247.238281 1011.160156 C 247.238281 1011.160156 405.300781 1050.65625 531 1150.378906 C 656.703125 1250.101562 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 699.085938 1242.511719 569.652344 1114.859375 C 440.214844 987.195312 232.304688 899.429688 232.304688 899.429688"/>
                 <path fill="#ffcc00" d="M 1267.773438 899.429688 C 1267.773438 899.429688 1256.242188 925.25 1252.507812 953.1875 C 1248.78125 981.117188 1252.832031 1011.160156 1252.832031 1011.160156 C 1252.832031 1011.160156 1094.773438 1050.65625 969.078125 1150.378906 C 843.375 1250.101562 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 800.992188 1242.511719 930.425781 1114.859375 C 1059.863281 987.195312 1267.773438 899.429688 1267.773438 899.429688"/>
               </svg>
-              <h1 className="text-xl font-bold text-black dark:text-white drop-shadow-lg">
+              <h1 className="font-['Times'] text-2xl font-bold text-black dark:text-white drop-shadow-lg">
                 Lexora Sub-System
               </h1>
             </div>

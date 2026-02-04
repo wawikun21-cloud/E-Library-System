@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, BookOpen, Upload, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,7 @@ interface Book {
   author: string
   isbn: string
   quantity: number
+  coverImage?: string // Base64 or URL
 }
 
 export default function BooksPage() {
@@ -49,7 +50,39 @@ export default function BooksPage() {
     author: '',
     isbn: '',
     quantity: 1,
+    coverImage: '',
   })
+  const [previewImage, setPreviewImage] = useState<string>('')
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB')
+        return
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        setFormData({ ...formData, coverImage: base64String })
+        setPreviewImage(base64String)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setFormData({ ...formData, coverImage: '' })
+    setPreviewImage('')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,7 +113,9 @@ export default function BooksPage() {
       author: book.author,
       isbn: book.isbn,
       quantity: book.quantity,
+      coverImage: book.coverImage || '',
     })
+    setPreviewImage(book.coverImage || '')
     setIsFormOpen(true)
   }
 
@@ -92,7 +127,8 @@ export default function BooksPage() {
   }
 
   const resetForm = () => {
-    setFormData({ title: '', author: '', isbn: '', quantity: 1 })
+    setFormData({ title: '', author: '', isbn: '', quantity: 1, coverImage: '' })
+    setPreviewImage('')
     setIsFormOpen(false)
     setEditingBook(null)
   }
@@ -122,7 +158,7 @@ export default function BooksPage() {
       {/* Search and Stats Section */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="md:col-span-3">
-          <CardContent className="pt-6">
+          <CardContent className="pt-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -136,7 +172,7 @@ export default function BooksPage() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-1">
             <CardDescription>Total Books</CardDescription>
             <CardTitle className="text-4xl">{books.length}</CardTitle>
           </CardHeader>
@@ -165,48 +201,63 @@ export default function BooksPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {filteredBooks.map((book) => (
-            <Card key={book.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg line-clamp-2">
-                      {book.title}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      by {book.author}
-                    </CardDescription>
-                  </div>
-                  <Badge variant={book.quantity > 5 ? "default" : book.quantity > 0 ? "secondary" : "destructive"}>
-                    {book.quantity} in stock
+            <Card key={book.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              {/* Book Cover Image */}
+              {book.coverImage ? (
+                <div className="aspect-[4/5] w-full overflow-hidden bg-muted">
+                  <img 
+                    src={book.coverImage} 
+                    alt={book.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="aspect-[4/5] w-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+                  <BookOpen className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+              )}
+              
+              <CardHeader className="p-2 pb-1">
+                <div className="space-y-1">
+                  <CardTitle className="text-xs line-clamp-1 leading-tight">
+                    {book.title}
+                  </CardTitle>
+                  <CardDescription className="text-xs line-clamp-1">
+                    {book.author}
+                  </CardDescription>
+                  <Badge 
+                    variant={book.quantity > 5 ? "default" : book.quantity > 0 ? "secondary" : "destructive"}
+                    className="text-xs px-1.5 py-0 h-4"
+                  >
+                    {book.quantity}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-medium">ISBN:</span>
-                    <span className="font-mono">{book.isbn}</span>
+              <CardContent className="p-2 pt-0">
+                <div className="space-y-1.5">
+                  <div className="text-xs text-muted-foreground truncate">
+                    {book.isbn}
                   </div>
                   
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-1">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-2"
+                      className="flex-1 gap-1 h-6 text-xs px-2"
                       onClick={() => handleEdit(book)}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-2.5 w-2.5" />
                       Edit
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-2 text-destructive hover:text-destructive"
+                      className="flex-1 gap-1 h-6 text-xs px-2 text-destructive hover:text-destructive"
                       onClick={() => setDeleteBook(book)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-2.5 w-2.5" />
                       Delete
                     </Button>
                   </div>
@@ -219,7 +270,7 @@ export default function BooksPage() {
 
       {/* Add/Edit Book Dialog */}
       <Dialog open={isFormOpen} onOpenChange={(open) => !open && resetForm()}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingBook ? 'Edit Book' : 'Add New Book'}
@@ -232,6 +283,49 @@ export default function BooksPage() {
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Cover Image Upload */}
+            <div className="space-y-2">
+              <Label>Book Cover</Label>
+              {previewImage ? (
+                <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto">
+                  <img 
+                    src={previewImage} 
+                    alt="Book cover preview"
+                    className="w-full h-full object-cover rounded-md border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-8 w-8 rounded-full"
+                    onClick={removeImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                  <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <Label htmlFor="cover-upload" className="cursor-pointer">
+                    <span className="text-sm font-medium text-primary hover:underline">
+                      Click to upload
+                    </span>
+                    <span className="text-sm text-muted-foreground"> or drag and drop</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PNG, JPG, WEBP (max 5MB)
+                  </p>
+                  <Input
+                    id="cover-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
               <Input

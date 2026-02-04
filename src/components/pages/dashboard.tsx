@@ -1,10 +1,28 @@
 import { useState } from 'react'
-import { Send, Image as ImageIcon, Calendar, BookCheck, Clock, User } from 'lucide-react'
+import { Send, Image as ImageIcon, Calendar, BookCheck, Clock, User, Upload, X, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Announcement {
   id: number
@@ -30,6 +48,41 @@ export default function HomePage() {
     message: '',
     imageUrl: '',
   })
+  const [previewImage, setPreviewImage] = useState<string>('')
+  const [uploadType, setUploadType] = useState<'url' | 'upload'>('upload')
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
+  const [deleteAnnouncement, setDeleteAnnouncement] = useState<Announcement | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB')
+        return
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        setFormData({ ...formData, imageUrl: base64String })
+        setPreviewImage(base64String)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setFormData({ ...formData, imageUrl: '' })
+    setPreviewImage('')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,6 +103,50 @@ export default function HomePage() {
     
     setAnnouncements([newAnnouncement, ...announcements])
     setFormData({ title: '', message: '', imageUrl: '' })
+    setPreviewImage('')
+  }
+
+  const handleEdit = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement)
+    setFormData({
+      title: announcement.title,
+      message: announcement.message,
+      imageUrl: announcement.imageUrl || '',
+    })
+    setPreviewImage(announcement.imageUrl || '')
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (editingAnnouncement) {
+      setAnnouncements(announcements.map(ann => 
+        ann.id === editingAnnouncement.id 
+          ? {
+              ...ann,
+              title: formData.title,
+              message: formData.message,
+              imageUrl: formData.imageUrl || undefined,
+            }
+          : ann
+      ))
+      resetEditForm()
+    }
+  }
+
+  const handleDelete = () => {
+    if (deleteAnnouncement) {
+      setAnnouncements(announcements.filter(ann => ann.id !== deleteAnnouncement.id))
+      setDeleteAnnouncement(null)
+    }
+  }
+
+  const resetEditForm = () => {
+    setFormData({ title: '', message: '', imageUrl: '' })
+    setPreviewImage('')
+    setEditingAnnouncement(null)
+    setIsEditDialogOpen(false)
   }
 
   // Mock appointments data - replace with actual data from your state management
@@ -135,20 +232,96 @@ export default function HomePage() {
                   />
                 </div>
 
+                {/* Image Upload Section */}
                 <div className="space-y-2">
-                  <Label htmlFor="image">
+                  <Label>
                     <div className="flex items-center gap-2">
                       <ImageIcon className="h-4 w-4" />
-                      Image URL (Optional)
+                      Image (Optional)
                     </div>
                   </Label>
-                  <Input
-                    id="image"
-                    type="url"
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.imageUrl}
-                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  />
+                  
+                  {/* Toggle between Upload and URL */}
+                  <div className="flex gap-2 mb-2">
+                    <Button
+                      type="button"
+                      variant={uploadType === 'upload' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setUploadType('upload')
+                        if (uploadType === 'url') {
+                          removeImage()
+                        }
+                      }}
+                    >
+                      Upload File
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={uploadType === 'url' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setUploadType('url')
+                        removeImage()
+                      }}
+                    >
+                      Use URL
+                    </Button>
+                  </div>
+
+                  {uploadType === 'upload' ? (
+                    // File Upload
+                    previewImage ? (
+                      <div className="relative w-full max-w-md">
+                        <img 
+                          src={previewImage} 
+                          alt="Preview"
+                          className="w-full h-48 object-cover rounded-md border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-8 w-8 rounded-full"
+                          onClick={removeImage}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                        <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                        <Label htmlFor="image-upload" className="cursor-pointer">
+                          <span className="text-sm font-medium text-primary hover:underline">
+                            Click to upload
+                          </span>
+                          <span className="text-sm text-muted-foreground"> or drag and drop</span>
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          PNG, JPG, JPEG, GIF, WEBP (max 5MB)
+                        </p>
+                        <Input
+                          id="image-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    )
+                  ) : (
+                    // URL Input
+                    <Input
+                      id="image-url"
+                      type="url"
+                      placeholder="https://example.com/image.jpg"
+                      value={formData.imageUrl}
+                      onChange={(e) => {
+                        setFormData({ ...formData, imageUrl: e.target.value })
+                        setPreviewImage(e.target.value)
+                      }}
+                    />
+                  )}
                 </div>
 
                 <Button type="submit" className="gap-2">
@@ -184,16 +357,34 @@ export default function HomePage() {
                           {announcement.date}
                         </CardDescription>
                       </div>
-                      <Badge variant="secondary">New</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">New</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(announcement)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteAnnouncement(announcement)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     {announcement.imageUrl && (
-                      <div className="mb-4 rounded-md overflow-hidden border">
+                      <div className="mb-4 rounded-md overflow-hidden border bg-muted">
                         <img
                           src={announcement.imageUrl}
                           alt={announcement.title}
-                          className="w-full h-48 object-cover"
+                          className="w-full max-h-[400px] object-contain"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none'
                           }}
@@ -318,6 +509,162 @@ export default function HomePage() {
           </Card>
         </div>
       </div>
+
+      {/* Edit Announcement Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => !open && resetEditForm()}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Announcement</DialogTitle>
+            <DialogDescription>
+              Update the announcement information below.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title *</Label>
+              <Input
+                id="edit-title"
+                placeholder="Enter announcement title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-message">Message *</Label>
+              <textarea
+                id="edit-message"
+                placeholder="Enter your announcement message..."
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                className="w-full min-h-[120px] px-3 py-2 border border-input rounded-md bg-background text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
+                required
+              />
+            </div>
+
+            {/* Image Edit Section */}
+            <div className="space-y-2">
+              <Label>
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Image (Optional)
+                </div>
+              </Label>
+              
+              {/* Toggle between Upload and URL */}
+              <div className="flex gap-2 mb-2">
+                <Button
+                  type="button"
+                  variant={uploadType === 'upload' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setUploadType('upload')
+                    if (uploadType === 'url') {
+                      removeImage()
+                    }
+                  }}
+                >
+                  Upload File
+                </Button>
+                <Button
+                  type="button"
+                  variant={uploadType === 'url' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setUploadType('url')
+                    removeImage()
+                  }}
+                >
+                  Use URL
+                </Button>
+              </div>
+
+              {uploadType === 'upload' ? (
+                // File Upload
+                previewImage ? (
+                  <div className="relative w-full">
+                    <img 
+                      src={previewImage} 
+                      alt="Preview"
+                      className="w-full max-h-[300px] object-contain rounded-md border bg-muted"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-8 w-8 rounded-full"
+                      onClick={removeImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                    <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                    <Label htmlFor="edit-image-upload" className="cursor-pointer">
+                      <span className="text-sm font-medium text-primary hover:underline">
+                        Click to upload
+                      </span>
+                      <span className="text-sm text-muted-foreground"> or drag and drop</span>
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PNG, JPG, JPEG, GIF, WEBP (max 5MB)
+                    </p>
+                    <Input
+                      id="edit-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </div>
+                )
+              ) : (
+                // URL Input
+                <Input
+                  id="edit-image-url"
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.imageUrl}
+                  onChange={(e) => {
+                    setFormData({ ...formData, imageUrl: e.target.value })
+                    setPreviewImage(e.target.value)
+                  }}
+                />
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={resetEditForm}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Update Announcement
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteAnnouncement} onOpenChange={(open) => !open && setDeleteAnnouncement(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Announcement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteAnnouncement?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
