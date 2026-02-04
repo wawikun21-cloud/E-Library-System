@@ -40,15 +40,28 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
 
   return (
     <div className="min-h-screen relative">
-      {/* Linear Gradient Background */}
-      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-slate-950 dark:via-purple-950 dark:to-indigo-950"></div>
+      {/* Altitude Gradient Background */}
+      <div className="fixed inset-0 -z-10">
+        {/* Light Mode: Gradient 1 → 2 → 3 → 4 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#F2E6EE] via-[#FFCCF3] via-[#9770FF] to-[#0033FF] dark:from-[#1a1a2e] dark:via-[#16213e] dark:to-[#0f3460]">
+          {/* Animated gradient orbs for depth */}
+          <div className="absolute top-0 -left-4 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob"
+               style={{ background: 'linear-gradient(135deg, #9770FF 0%, #FFCCF3 100%)' }}></div>
+          <div className="absolute top-0 right-0 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob animation-delay-2000"
+               style={{ background: 'linear-gradient(135deg, #0033FF 0%, #0D33FF 100%)' }}></div>
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob animation-delay-4000"
+               style={{ background: 'linear-gradient(135deg, #9770FF 0%, #0033FF 100%)' }}></div>
+        </div>
+      </div>
 
-      {/* Fixed Navigation - Clean, no gradient */}
-      <nav className="fixed top-0 left-0 right-0 z-[50] border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+      {/* Fixed Navigation - Always stays at top */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/20 dark:border-white/10 bg-white/10 dark:bg-black/20 backdrop-blur-xl">
         <div className="container mx-auto px-4">
-          <div className="flex h-20 items-center justify-between">
-            {/* Logo/Brand - Clean text */}
-            <h1 className="text-xl font-bold text-foreground">NEMCO Library System</h1>
+          <div className="flex h-16 items-center justify-between">
+            {/* Logo/Brand - Black in light mode, White in dark mode */}
+            <h1 className="text-xl font-bold text-black dark:text-white drop-shadow-lg">
+              NEMCO Library System
+            </h1>
             
             {/* Desktop Navigation - Right Aligned */}
             <div className="hidden md:flex items-center gap-2">
@@ -58,10 +71,10 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                   <button
                     key={item.id}
                     onClick={() => setCurrentPage(item.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 ${
                       currentPage === item.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        ? 'bg-white/20 text-black dark:text-white backdrop-blur-sm shadow-lg'
+                        : 'text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white hover:bg-white/10'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -75,7 +88,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="rounded-full"
+                className="rounded-full text-black dark:text-white hover:bg-white/10"
               >
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -85,16 +98,16 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/10">
+                    <Avatar className="h-9 w-9 ring-2 ring-black/30 dark:ring-white/30">
                       <AvatarImage src="" alt="Admin" />
-                      <AvatarFallback className="bg-primary text-primary-foreground">
+                      <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
                         AD
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-56 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium">Admin User</p>
@@ -126,6 +139,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
+                className="text-black dark:text-white hover:bg-white/10"
               >
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -136,6 +150,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsMobileMenuOpen(true)}
+                className="text-black dark:text-white hover:bg-white/10"
               >
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open menu</span>
@@ -145,9 +160,9 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
         </div>
       </nav>
 
-      {/* Mobile Sidebar - Clean, no gradient */}
+      {/* Mobile Sidebar */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetContent side="left" className="w-[280px] sm:w-[320px]">
+        <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-white/20">
           <SheetHeader>
             <SheetTitle>Library System</SheetTitle>
             <SheetDescription>
@@ -156,11 +171,11 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
           </SheetHeader>
           
           {/* Mobile Profile Section */}
-          <div className="mt-6 mb-4 p-4 rounded-lg border bg-muted/50">
+          <div className="mt-6 mb-4 p-4 rounded-lg bg-gradient-to-r from-[#9770FF]/10 to-[#0033FF]/10 border border-[#9770FF]/20">
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-10 w-10 ring-2 ring-[#9770FF]/50">
                 <AvatarImage src="" alt="Admin" />
-                <AvatarFallback className="bg-primary text-primary-foreground">
+                <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
                   AD
                 </AvatarFallback>
               </Avatar>
@@ -209,490 +224,37 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
         </SheetContent>
       </Sheet>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 relative mt-16">
+      {/* Main Content - Add padding top to prevent content from hiding under fixed nav */}
+      <main className="container mx-auto px-4 py-8 pt-24 relative">
         {children}
       </main>
 
-      {/* Custom animations for semi-flip card effect */}
+      {/* Custom animations */}
       <style>{`
-        /* Sticky search bar styling */
-        .sticky-search-bar {
-          position: -webkit-sticky;
-          position: sticky;
-          top: 4rem; /* 64px - same as navigation height h-16 */
-          z-index: 40;
-          background-color: hsl(var(--card) / 0.95);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-radius: var(--radius);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          transition: all 0.3s ease;
-        }
-        
-        .sticky-search-bar.is-stuck {
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        
-        /* Semi-flip card animation - Dynamic tilt based on cursor position */
-        .stat-card {
-          position: relative;
-          transition: transform 0.2s ease-out, box-shadow 0.3s;
-          transform-style: preserve-3d;
-          overflow: hidden;
-        }
-        
-        .stat-card > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            110deg,
-            transparent 25%,
-            rgba(255, 255, 255, 0.8) 50%,
-            transparent 75%
-          );
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card:hover {
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-        }
-        
-        .stat-card:hover::before {
-          animation: shine-sweep 0.8s ease-in-out;
-        }
-        
-        /* Alternative semi-flip on hover - Dynamic tilt */
-        .stat-card-flip {
-          position: relative;
-          perspective: 1000px;
-          transition: transform 0.2s ease-out, box-shadow 0.4s ease;
-          overflow: hidden;
-        }
-        
-        .stat-card-flip > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-flip::before {
-          content: '';
-          position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: linear-gradient(
-            45deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.8) 50%,
-            transparent 80%
-          );
-          transform: rotate(45deg);
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-flip:hover {
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-        }
-        
-        .stat-card-flip:hover::before {
-          animation: shine-diagonal 1s ease-in-out;
-        }
-        
-        /* Subtle 3D effect - Dynamic tilt */
-        .stat-card-3d {
-          position: relative;
-          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
-          overflow: hidden;
-        }
-        
-        .stat-card-3d > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-3d::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -150%;
-          width: 80%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.9),
-            transparent
-          );
-          transform: skewX(-25deg);
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-3d:hover {
-          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
-        }
-        
-        .stat-card-3d:hover::before {
-          animation: shine-skew 0.7s ease-in-out;
-        }
-        
-        /* Glass Morphism with depth */
-        .stat-card-glass {
-          position: relative;
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          transition: all 0.2s ease-out;
-          transform-style: preserve-3d;
-          overflow: hidden;
-        }
-        
-        .stat-card-glass > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-glass::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.3),
-            transparent
-          );
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-glass::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            rgba(255, 255, 255, 0.2) 0%,
-            transparent 50%
-          );
-          opacity: 0;
-          transition: opacity 0.3s;
-          z-index: 1;
-        }
-        
-        .stat-card-glass:hover::before {
-          animation: shine-sweep 0.8s ease-in-out;
-        }
-        
-        .stat-card-glass:hover::after {
-          opacity: 1;
-        }
-        
-        /* Floating card with shadow depth */
-        .stat-card-float {
-          position: relative;
-          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
-          transform-style: preserve-3d;
-          overflow: hidden;
-          box-shadow: 
-            0 1px 3px rgba(0, 0, 0, 0.12),
-            0 1px 2px rgba(0, 0, 0, 0.24);
-        }
-        
-        .stat-card-float > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-float::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            110deg,
-            transparent,
-            rgba(255, 255, 255, 0.8),
-            transparent
-          );
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-float:hover {
-          box-shadow: 
-            0 14px 28px rgba(0, 0, 0, 0.25),
-            0 10px 10px rgba(0, 0, 0, 0.22);
-        }
-        
-        .stat-card-float:hover::before {
-          animation: shine-sweep 0.6s ease-in-out;
-        }
-        
-        /* Holographic effect */
-        .stat-card-holo {
-          position: relative;
-          transition: transform 0.2s ease-out;
-          transform-style: preserve-3d;
-          overflow: hidden;
-          background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.1),
-            rgba(255, 255, 255, 0.05)
-          );
-        }
-        
-        .stat-card-holo > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-holo::before {
-          content: '';
-          position: absolute;
-          inset: -50%;
-          background: linear-gradient(
-            115deg,
-            transparent 20%,
-            rgba(255, 100, 200, 0.4) 36%,
-            rgba(100, 200, 255, 0.4) 43%,
-            rgba(255, 255, 100, 0.4) 50%,
-            rgba(100, 255, 200, 0.4) 60%,
-            transparent 80%
-          );
-          transform: translateX(-100%) translateY(-100%) rotate(45deg);
-          transition: transform 0.6s;
-          z-index: 1;
-          pointer-events: none;
-        }
-        
-        .stat-card-holo::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-            rgba(255, 255, 255, 0.15) 0%,
-            transparent 60%
-          );
-          opacity: 0;
-          transition: opacity 0.3s;
-          z-index: 2;
-        }
-        
-        .stat-card-holo:hover::before {
-          transform: translateX(100%) translateY(100%) rotate(45deg);
-        }
-        
-        .stat-card-holo:hover::after {
-          opacity: 1;
-        }
-        
-        /* Neon glow effect */
-        .stat-card-neon {
-          position: relative;
-          transition: all 0.2s ease-out;
-          transform-style: preserve-3d;
-          overflow: hidden;
-          border: 1px solid rgba(99, 102, 241, 0.3);
-        }
-        
-        .stat-card-neon > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-neon::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(99, 102, 241, 0.5),
-            transparent
-          );
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-neon:hover {
-          box-shadow: 
-            0 0 20px rgba(99, 102, 241, 0.4),
-            0 0 40px rgba(99, 102, 241, 0.2),
-            0 10px 30px rgba(0, 0, 0, 0.3);
-          border-color: rgba(99, 102, 241, 0.6);
-        }
-        
-        .stat-card-neon:hover::before {
-          animation: shine-sweep 0.7s ease-in-out;
-        }
-        
-        /* Metallic shine effect */
-        .stat-card-metal {
-          position: relative;
-          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
-          transform-style: preserve-3d;
-          overflow: hidden;
-          background: linear-gradient(
-            135deg,
-            rgba(200, 200, 200, 0.1) 0%,
-            rgba(255, 255, 255, 0.1) 50%,
-            rgba(200, 200, 200, 0.1) 100%
-          );
-        }
-        
-        .stat-card-metal > * {
-          position: relative;
-          z-index: 2;
-        }
-        
-        .stat-card-metal::before {
-          content: '';
-          position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: linear-gradient(
-            45deg,
-            transparent 30%,
-            rgba(255, 255, 255, 0.9) 50%,
-            transparent 70%
-          );
-          transform: rotate(45deg);
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .stat-card-metal:hover {
-          box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.3);
-        }
-        
-        .stat-card-metal:hover::before {
-          animation: shine-diagonal 0.8s ease-in-out;
-        }
-        
-        @keyframes shine-sweep {
+        @keyframes blob {
           0% {
-            left: -100%;
+            transform: translate(0px, 0px) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
           }
           100% {
-            left: 150%;
+            transform: translate(0px, 0px) scale(1);
           }
         }
-        
-        @keyframes shine-diagonal {
-          0% {
-            transform: rotate(45deg) translateX(-150%);
-          }
-          100% {
-            transform: rotate(45deg) translateX(150%);
-          }
+        .animate-blob {
+          animation: blob 7s infinite;
         }
-        
-        @keyframes shine-skew {
-          0% {
-            left: -150%;
-          }
-          100% {
-            left: 200%;
-          }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
         }
       `}</style>
-      
-      {/* Dynamic tilt script */}
-      <script dangerouslySetInnerHTML={{__html: `
-        document.addEventListener('DOMContentLoaded', function() {
-          // Sticky search bar observer
-          function setupStickyObserver() {
-            const stickyElement = document.querySelector('.sticky-search-bar');
-            if (!stickyElement) return;
-            
-            const observer = new IntersectionObserver(
-              ([e]) => {
-                if (e.intersectionRatio < 1) {
-                  e.target.classList.add('is-stuck');
-                } else {
-                  e.target.classList.remove('is-stuck');
-                }
-              },
-              { threshold: [1], rootMargin: '-64px 0px 0px 0px' }
-            );
-            
-            observer.observe(stickyElement);
-          }
-          
-          setupStickyObserver();
-          
-          // Tilt effect for cards
-          function handleTilt(e) {
-            const card = e.currentTarget;
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            
-            const rotateX = ((y - centerY) / centerY) * -15;
-            const rotateY = ((x - centerX) / centerX) * 15;
-            
-            // Update CSS variables for effects that need mouse position
-            const percentX = (x / rect.width) * 100;
-            const percentY = (y / rect.height) * 100;
-            card.style.setProperty('--mouse-x', percentX + '%');
-            card.style.setProperty('--mouse-y', percentY + '%');
-            
-            card.style.transform = \`perspective(1000px) rotateX(\${rotateX}deg) rotateY(\${rotateY}deg) translateY(-8px)\`;
-          }
-          
-          function resetTilt(e) {
-            const card = e.currentTarget;
-            card.style.transform = '';
-          }
-          
-          function attachTiltListeners() {
-            const cards = document.querySelectorAll('.stat-card, .stat-card-flip, .stat-card-3d, .stat-card-glass, .stat-card-float, .stat-card-holo, .stat-card-neon, .stat-card-metal');
-            cards.forEach(card => {
-              card.addEventListener('mousemove', handleTilt);
-              card.addEventListener('mouseleave', resetTilt);
-            });
-          }
-          
-          attachTiltListeners();
-          
-          // Re-attach listeners when content changes
-          const observer = new MutationObserver(function() {
-            attachTiltListeners();
-            setupStickyObserver();
-          });
-          observer.observe(document.body, { childList: true, subtree: true });
-        });
-      `}} />
     </div>
   )
 }
