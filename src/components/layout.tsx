@@ -23,7 +23,6 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'students', label: 'Students', icon: Users },
     { id: 'books', label: 'Books', icon: BookOpen },
     { id: 'borrowed', label: 'Borrowed', icon: BookMarked },
   ]
