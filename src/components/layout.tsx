@@ -39,12 +39,15 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sticky Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+    <div className="min-h-screen relative">
+      {/* Linear Gradient Background */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-slate-950 dark:via-purple-950 dark:to-indigo-950"></div>
+
+      {/* Fixed Navigation - Clean, no gradient */}
+      <nav className="fixed top-0 left-0 right-0 z-[50] border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="container mx-auto px-4">
-          <div className="flex h-16 items-center justify-between">
-            {/* Logo/Brand */}
+          <div className="flex h-20 items-center justify-between">
+            {/* Logo/Brand - Clean text */}
             <h1 className="text-xl font-bold text-foreground">NEMCO Library System</h1>
             
             {/* Desktop Navigation - Right Aligned */}
@@ -142,7 +145,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
         </div>
       </nav>
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar - Clean, no gradient */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="w-[280px] sm:w-[320px]">
           <SheetHeader>
@@ -207,9 +210,489 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
       </Sheet>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 relative mt-16">
         {children}
       </main>
+
+      {/* Custom animations for semi-flip card effect */}
+      <style>{`
+        /* Sticky search bar styling */
+        .sticky-search-bar {
+          position: -webkit-sticky;
+          position: sticky;
+          top: 4rem; /* 64px - same as navigation height h-16 */
+          z-index: 40;
+          background-color: hsl(var(--card) / 0.95);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
+        }
+        
+        .sticky-search-bar.is-stuck {
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Semi-flip card animation - Dynamic tilt based on cursor position */
+        .stat-card {
+          position: relative;
+          transition: transform 0.2s ease-out, box-shadow 0.3s;
+          transform-style: preserve-3d;
+          overflow: hidden;
+        }
+        
+        .stat-card > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            110deg,
+            transparent 25%,
+            rgba(255, 255, 255, 0.8) 50%,
+            transparent 75%
+          );
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card:hover {
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stat-card:hover::before {
+          animation: shine-sweep 0.8s ease-in-out;
+        }
+        
+        /* Alternative semi-flip on hover - Dynamic tilt */
+        .stat-card-flip {
+          position: relative;
+          perspective: 1000px;
+          transition: transform 0.2s ease-out, box-shadow 0.4s ease;
+          overflow: hidden;
+        }
+        
+        .stat-card-flip > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-flip::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: linear-gradient(
+            45deg,
+            transparent 20%,
+            rgba(255, 255, 255, 0.8) 50%,
+            transparent 80%
+          );
+          transform: rotate(45deg);
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-flip:hover {
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stat-card-flip:hover::before {
+          animation: shine-diagonal 1s ease-in-out;
+        }
+        
+        /* Subtle 3D effect - Dynamic tilt */
+        .stat-card-3d {
+          position: relative;
+          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
+          overflow: hidden;
+        }
+        
+        .stat-card-3d > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-3d::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -150%;
+          width: 80%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.9),
+            transparent
+          );
+          transform: skewX(-25deg);
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-3d:hover {
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stat-card-3d:hover::before {
+          animation: shine-skew 0.7s ease-in-out;
+        }
+        
+        /* Glass Morphism with depth */
+        .stat-card-glass {
+          position: relative;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          transition: all 0.2s ease-out;
+          transform-style: preserve-3d;
+          overflow: hidden;
+        }
+        
+        .stat-card-glass > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-glass::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent
+          );
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-glass::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+            rgba(255, 255, 255, 0.2) 0%,
+            transparent 50%
+          );
+          opacity: 0;
+          transition: opacity 0.3s;
+          z-index: 1;
+        }
+        
+        .stat-card-glass:hover::before {
+          animation: shine-sweep 0.8s ease-in-out;
+        }
+        
+        .stat-card-glass:hover::after {
+          opacity: 1;
+        }
+        
+        /* Floating card with shadow depth */
+        .stat-card-float {
+          position: relative;
+          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
+          transform-style: preserve-3d;
+          overflow: hidden;
+          box-shadow: 
+            0 1px 3px rgba(0, 0, 0, 0.12),
+            0 1px 2px rgba(0, 0, 0, 0.24);
+        }
+        
+        .stat-card-float > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-float::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            110deg,
+            transparent,
+            rgba(255, 255, 255, 0.8),
+            transparent
+          );
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-float:hover {
+          box-shadow: 
+            0 14px 28px rgba(0, 0, 0, 0.25),
+            0 10px 10px rgba(0, 0, 0, 0.22);
+        }
+        
+        .stat-card-float:hover::before {
+          animation: shine-sweep 0.6s ease-in-out;
+        }
+        
+        /* Holographic effect */
+        .stat-card-holo {
+          position: relative;
+          transition: transform 0.2s ease-out;
+          transform-style: preserve-3d;
+          overflow: hidden;
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.05)
+          );
+        }
+        
+        .stat-card-holo > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-holo::before {
+          content: '';
+          position: absolute;
+          inset: -50%;
+          background: linear-gradient(
+            115deg,
+            transparent 20%,
+            rgba(255, 100, 200, 0.4) 36%,
+            rgba(100, 200, 255, 0.4) 43%,
+            rgba(255, 255, 100, 0.4) 50%,
+            rgba(100, 255, 200, 0.4) 60%,
+            transparent 80%
+          );
+          transform: translateX(-100%) translateY(-100%) rotate(45deg);
+          transition: transform 0.6s;
+          z-index: 1;
+          pointer-events: none;
+        }
+        
+        .stat-card-holo::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+            rgba(255, 255, 255, 0.15) 0%,
+            transparent 60%
+          );
+          opacity: 0;
+          transition: opacity 0.3s;
+          z-index: 2;
+        }
+        
+        .stat-card-holo:hover::before {
+          transform: translateX(100%) translateY(100%) rotate(45deg);
+        }
+        
+        .stat-card-holo:hover::after {
+          opacity: 1;
+        }
+        
+        /* Neon glow effect */
+        .stat-card-neon {
+          position: relative;
+          transition: all 0.2s ease-out;
+          transform-style: preserve-3d;
+          overflow: hidden;
+          border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        
+        .stat-card-neon > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-neon::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(99, 102, 241, 0.5),
+            transparent
+          );
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-neon:hover {
+          box-shadow: 
+            0 0 20px rgba(99, 102, 241, 0.4),
+            0 0 40px rgba(99, 102, 241, 0.2),
+            0 10px 30px rgba(0, 0, 0, 0.3);
+          border-color: rgba(99, 102, 241, 0.6);
+        }
+        
+        .stat-card-neon:hover::before {
+          animation: shine-sweep 0.7s ease-in-out;
+        }
+        
+        /* Metallic shine effect */
+        .stat-card-metal {
+          position: relative;
+          transition: transform 0.2s ease-out, box-shadow 0.3s ease;
+          transform-style: preserve-3d;
+          overflow: hidden;
+          background: linear-gradient(
+            135deg,
+            rgba(200, 200, 200, 0.1) 0%,
+            rgba(255, 255, 255, 0.1) 50%,
+            rgba(200, 200, 200, 0.1) 100%
+          );
+        }
+        
+        .stat-card-metal > * {
+          position: relative;
+          z-index: 2;
+        }
+        
+        .stat-card-metal::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: linear-gradient(
+            45deg,
+            transparent 30%,
+            rgba(255, 255, 255, 0.9) 50%,
+            transparent 70%
+          );
+          transform: rotate(45deg);
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .stat-card-metal:hover {
+          box-shadow: 
+            0 10px 30px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+        
+        .stat-card-metal:hover::before {
+          animation: shine-diagonal 0.8s ease-in-out;
+        }
+        
+        @keyframes shine-sweep {
+          0% {
+            left: -100%;
+          }
+          100% {
+            left: 150%;
+          }
+        }
+        
+        @keyframes shine-diagonal {
+          0% {
+            transform: rotate(45deg) translateX(-150%);
+          }
+          100% {
+            transform: rotate(45deg) translateX(150%);
+          }
+        }
+        
+        @keyframes shine-skew {
+          0% {
+            left: -150%;
+          }
+          100% {
+            left: 200%;
+          }
+        }
+      `}</style>
+      
+      {/* Dynamic tilt script */}
+      <script dangerouslySetInnerHTML={{__html: `
+        document.addEventListener('DOMContentLoaded', function() {
+          // Sticky search bar observer
+          function setupStickyObserver() {
+            const stickyElement = document.querySelector('.sticky-search-bar');
+            if (!stickyElement) return;
+            
+            const observer = new IntersectionObserver(
+              ([e]) => {
+                if (e.intersectionRatio < 1) {
+                  e.target.classList.add('is-stuck');
+                } else {
+                  e.target.classList.remove('is-stuck');
+                }
+              },
+              { threshold: [1], rootMargin: '-64px 0px 0px 0px' }
+            );
+            
+            observer.observe(stickyElement);
+          }
+          
+          setupStickyObserver();
+          
+          // Tilt effect for cards
+          function handleTilt(e) {
+            const card = e.currentTarget;
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const rotateX = ((y - centerY) / centerY) * -15;
+            const rotateY = ((x - centerX) / centerX) * 15;
+            
+            // Update CSS variables for effects that need mouse position
+            const percentX = (x / rect.width) * 100;
+            const percentY = (y / rect.height) * 100;
+            card.style.setProperty('--mouse-x', percentX + '%');
+            card.style.setProperty('--mouse-y', percentY + '%');
+            
+            card.style.transform = \`perspective(1000px) rotateX(\${rotateX}deg) rotateY(\${rotateY}deg) translateY(-8px)\`;
+          }
+          
+          function resetTilt(e) {
+            const card = e.currentTarget;
+            card.style.transform = '';
+          }
+          
+          function attachTiltListeners() {
+            const cards = document.querySelectorAll('.stat-card, .stat-card-flip, .stat-card-3d, .stat-card-glass, .stat-card-float, .stat-card-holo, .stat-card-neon, .stat-card-metal');
+            cards.forEach(card => {
+              card.addEventListener('mousemove', handleTilt);
+              card.addEventListener('mouseleave', resetTilt);
+            });
+          }
+          
+          attachTiltListeners();
+          
+          // Re-attach listeners when content changes
+          const observer = new MutationObserver(function() {
+            attachTiltListeners();
+            setupStickyObserver();
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+        });
+      `}} />
     </div>
   )
 }

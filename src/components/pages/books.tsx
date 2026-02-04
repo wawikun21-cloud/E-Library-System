@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Plus, Pencil, Trash2, BookOpen, X } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -104,11 +104,11 @@ export default function BooksPage() {
   )
 
   return (
-    <div className="container mx-auto py-8 px-4 space-y-6">
+    <div className="container mx-auto py-2 px-4 space-y-6">
       {/* Header Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Book Library</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Book Library</h1>
           <p className="text-muted-foreground mt-2">
             Manage your book collection with ease
           </p>
