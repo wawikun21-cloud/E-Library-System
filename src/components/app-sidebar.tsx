@@ -1,7 +1,6 @@
-import { 
-  BookOpen, 
-  Users, 
-  BookMarked, 
+import {
+  BookOpen,
+  BookMarked,
   Home,
   Search,
   Settings,
@@ -31,7 +30,6 @@ export function AppSidebar({ currentPage, setCurrentPage }: {
   
   const mainMenuItems = [
     { name: "Dashboard", page: "dashboard", icon: Home },
-    { name: "Students", page: "students", icon: Users },
     { name: "Books", page: "books", icon: BookOpen },
     { name: "Borrowed", page: "borrowed", icon: BookMarked },
   ];

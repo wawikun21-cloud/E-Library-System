@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react'
-import { Menu, LayoutDashboard, Users, BookOpen, BookMarked, User, LogOut, Settings } from 'lucide-react'
+import { Menu, LayoutDashboard, BookOpen, BookMarked, User, LogOut, Settings, Sun, Moon } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useTheme } from '@/components/ui/theme-provider'
 
 interface LayoutProps {
   children: ReactNode
@@ -20,6 +21,7 @@ interface LayoutProps {
 
 export default function Layout({ children, currentPage, setCurrentPage }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -32,6 +34,10 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
     setIsMobileMenuOpen(false)
   }
 
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark')
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Sticky Navigation */}
@@ -39,7 +45,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             {/* Logo/Brand */}
-            <h1 className="text-xl font-bold text-foreground">Library System</h1>
+            <h1 className="text-xl font-bold text-foreground">NEMCO Library System</h1>
             
             {/* Desktop Navigation - Right Aligned */}
             <div className="hidden md:flex items-center gap-2">
@@ -60,6 +66,18 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                   </button>
                 )
               })}
+              
+              {/* Theme Toggle Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="rounded-full"
+              >
+                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">Toggle theme</span>
+              </Button>
               
               {/* Profile Dropdown */}
               <DropdownMenu>
@@ -99,15 +117,27 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
             </div>
 
             {/* Mobile Menu Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setIsMobileMenuOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open menu</span>
-            </Button>
+            <div className="flex items-center gap-2 md:hidden">
+              {/* Mobile Theme Toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+              >
+                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">Toggle theme</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </div>
           </div>
         </div>
       </nav>

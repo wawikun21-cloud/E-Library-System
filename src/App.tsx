@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import Layout from '@/components/layout'
-import DashboardPage from '@/components/pages/dashboard'
-import StudentsPage from '@/components/pages/students'
-import BooksPage from '@/components/pages/books'
-import BorrowedPage from '@/components/pages/borrowed'
+import Layout from './components/layout'
+import HomePage from './components/pages/dashboard'
+import BooksPage from './components/pages/books'
+import BorrowedPage from './components/pages/borrowed'
+import { ThemeProvider } from './components/ui/theme-provider'
 import './index.css'
 
 function App() {
@@ -11,21 +11,23 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'students':
-        return <StudentsPage />
+      case 'dashboard':
+        return <HomePage />
       case 'books':
         return <BooksPage />
       case 'borrowed':
         return <BorrowedPage />
       default:
-        return <DashboardPage />
+        return <HomePage />
     }
   }
 
   return (
-    <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
-      {renderPage()}
-    </Layout>
+    <ThemeProvider defaultTheme="system" storageKey="nemco-library-theme">
+      <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
+        {renderPage()}
+      </Layout>
+    </ThemeProvider>
   )
 }
 
