@@ -166,6 +166,25 @@ export default function BorrowedPage() {
     returned: borrowedBooks.filter(b => b.status === 'returned').length,
   }
 
+  // Tilt effect handler
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget
+    const rect = card.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    const rotateX = (y - centerY) / 10
+    const rotateY = (centerX - x) / 10
+
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.05, 1.05, 1.05)`
+  }
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget
+    card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)'
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -180,112 +199,92 @@ export default function BorrowedPage() {
         </Button>
       </div>
 
-      {/* Stats Cards with 3D Effects */}
-      <div className="grid gap-4 md:grid-cols-4" style={{ perspective: '1000px' }}>
+      {/* Stats Cards with 3D Tilt Effects */}
+      <div className="grid gap-4 md:grid-cols-4">
         <Card 
-          className="hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border border-white dark:border-white/20"
+          className="hover:shadow-2xl cursor-pointer border border-white dark:border-white/20"
           style={{
             transformStyle: 'preserve-3d',
-            transition: 'all 0.3s ease-out'
+            transition: 'all 0.3s cubic-bezier(0.03, 0.98, 0.52, 0.99)',
+            willChange: 'transform'
           }}
           onClick={() => setFilterStatus('all')}
-          onMouseEnter={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(-5deg) rotateX(5deg) translateY(-8px) scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
-          }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
-          <CardContent className="pt-6">
+          <CardContent className="pt-6" style={{ transform: 'translateZ(20px)' }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-bold">{stats.total}</p>
                 <p className="text-xs text-muted-foreground">Total Borrowed</p>
               </div>
-              <BookOpen className="h-8 w-8 text-muted-foreground opacity-50 transition-transform duration-300 hover:scale-110" />
+              <BookOpen className="h-8 w-8 text-muted-foreground opacity-50" />
             </div>
           </CardContent>
         </Card>
 
         <Card 
-          className="hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border border-white dark:border-white/20"
+          className="hover:shadow-2xl cursor-pointer border border-white dark:border-white/20"
           style={{
             transformStyle: 'preserve-3d',
-            transition: 'all 0.3s ease-out'
+            transition: 'all 0.3s cubic-bezier(0.03, 0.98, 0.52, 0.99)',
+            willChange: 'transform'
           }}
           onClick={() => setFilterStatus('active')}
-          onMouseEnter={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(-5deg) rotateX(5deg) translateY(-8px) scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
-          }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
-          <CardContent className="pt-6">
+          <CardContent className="pt-6" style={{ transform: 'translateZ(20px)' }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-bold text-green-600">{stats.active}</p>
                 <p className="text-xs text-muted-foreground">Active</p>
               </div>
-              <Clock className="h-8 w-8 text-green-600 opacity-50 transition-transform duration-300 hover:scale-110" />
+              <Clock className="h-8 w-8 text-green-600 opacity-50" />
             </div>
           </CardContent>
         </Card>
 
         <Card 
-          className="hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border border-white dark:border-white/20"
+          className="hover:shadow-2xl cursor-pointer border border-white dark:border-white/20"
           style={{
             transformStyle: 'preserve-3d',
-            transition: 'all 0.3s ease-out'
+            transition: 'all 0.3s cubic-bezier(0.03, 0.98, 0.52, 0.99)',
+            willChange: 'transform'
           }}
           onClick={() => setFilterStatus('overdue')}
-          onMouseEnter={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(-5deg) rotateX(5deg) translateY(-8px) scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
-          }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
-          <CardContent className="pt-6">
+          <CardContent className="pt-6" style={{ transform: 'translateZ(20px)' }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-bold text-destructive">{stats.overdue}</p>
                 <p className="text-xs text-muted-foreground">Overdue</p>
               </div>
-              <AlertCircle className="h-8 w-8 text-destructive opacity-50 transition-transform duration-300 hover:scale-110" />
+              <AlertCircle className="h-8 w-8 text-destructive opacity-50" />
             </div>
           </CardContent>
         </Card>
 
         <Card 
-          className="hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border border-white dark:border-white/20"
+          className="hover:shadow-2xl cursor-pointer border border-white dark:border-white/20"
           style={{
             transformStyle: 'preserve-3d',
-            transition: 'all 0.3s ease-out'
+            transition: 'all 0.3s cubic-bezier(0.03, 0.98, 0.52, 0.99)',
+            willChange: 'transform'
           }}
           onClick={() => setFilterStatus('returned')}
-          onMouseEnter={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(-5deg) rotateX(5deg) translateY(-8px) scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            const card = e.currentTarget
-            card.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
-          }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
-          <CardContent className="pt-6">
+          <CardContent className="pt-6" style={{ transform: 'translateZ(20px)' }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-bold text-blue-600">{stats.returned}</p>
                 <p className="text-xs text-muted-foreground">Returned</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-blue-600 opacity-50 transition-transform duration-300 hover:scale-110" />
+              <CheckCircle2 className="h-8 w-8 text-blue-600 opacity-50" />
             </div>
           </CardContent>
         </Card>
