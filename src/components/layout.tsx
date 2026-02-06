@@ -1,5 +1,5 @@
-import { ReactNode, useState } from 'react'
-import { Menu, LayoutDashboard, BookOpen, BookMarked, User, LogOut, Settings, Sun, Moon } from 'lucide-react'
+import { ReactNode, useState, useEffect } from 'react'
+import { LayoutDashboard, BookOpen, BookMarked, User, LogOut, Settings, Sun, Moon } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,17 +11,34 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useTheme } from '@/components/ui/theme-provider'
 
 interface LayoutProps {
   children: ReactNode
   currentPage: string
   setCurrentPage: (page: string) => void
+  onLogout: () => void
 }
 
-export default function Layout({ children, currentPage, setCurrentPage }: LayoutProps) {
+export default function Layout({ children, currentPage, setCurrentPage, onLogout }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+
+  // Load theme from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('lexora-theme') as 'light' | 'dark' | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark')
+    }
+  }, [])
+
+  // Toggle theme function
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    localStorage.setItem('lexora-theme', newTheme)
+    document.documentElement.classList.toggle('dark', newTheme === 'dark')
+  }
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -34,29 +51,36 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
     setIsMobileMenuOpen(false)
   }
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
-  }
-
   return (
     <div className="min-h-screen relative">
-      {/* Altitude Gradient Background */}
+      {/* Altitude Gradient Background - Light/Dark Mode */}
       <div className="fixed inset-0 -z-10">
-        {/* Light Mode: Gradient 1 → 2 → 3 → 4 */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F2E6EE] via-[#FFCCF3] to-[#0033FF] dark:from-[#1a1a2e] dark:via-[#16213e] dark:to-[#0f3460]">
-          {/* Animated gradient orbs for depth */}
-          <div className="absolute top-0 -left-4 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob"
+        {/* Light Mode Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#F2E6EE] via-[#FFCCF3] to-[#0033FF] opacity-100 dark:opacity-0 transition-opacity duration-500">
+          {/* Animated gradient orbs for depth - Light Mode */}
+          <div className="absolute top-0 -left-4 w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob"
                style={{ background: 'linear-gradient(135deg, #9770FF 0%, #FFCCF3 100%)' }}></div>
-          <div className="absolute top-0 right-0 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob animation-delay-2000"
+          <div className="absolute top-0 right-0 w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-2000"
                style={{ background: 'linear-gradient(135deg, #0033FF 0%, #0D33FF 100%)' }}></div>
-          <div className="absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-3xl opacity-60 dark:opacity-40 animate-blob animation-delay-4000"
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-4000"
+               style={{ background: 'linear-gradient(135deg, #9770FF 0%, #0033FF 100%)' }}></div>
+        </div>
+        
+        {/* Dark Mode Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#525269] via-[#495d94] to-[#174277] opacity-0 dark:opacity-100 transition-opacity duration-500">
+          {/* Animated gradient orbs for depth - Dark Mode */}
+          <div className="absolute top-0 -left-4 w-96 h-96 rounded-full mix-blend-soft-light filter blur-3xl opacity-40 animate-blob"
+               style={{ background: 'linear-gradient(135deg, #9770FF 0%, #FFCCF3 100%)' }}></div>
+          <div className="absolute top-0 right-0 w-96 h-96 rounded-full mix-blend-soft-light filter blur-3xl opacity-40 animate-blob animation-delay-2000"
+               style={{ background: 'linear-gradient(135deg, #0033FF 0%, #0D33FF 100%)' }}></div>
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-soft-light filter blur-3xl opacity-40 animate-blob animation-delay-4000"
                style={{ background: 'linear-gradient(135deg, #9770FF 0%, #0033FF 100%)' }}></div>
         </div>
       </div>
 
       {/* Fixed Navigation - Always stays at top */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/20 dark:border-white/10 bg-white/10 dark:bg-black/20 backdrop-blur-xl">
-        <div className="container mx-auto px-10">
+        <div className="container mx-auto px-0">
           <div className="flex h-20 items-center justify-between">
             {/* Mobile Menu Button + Logo - LEFT SIDE */}
             <div className="flex items-center gap-3">
@@ -65,7 +89,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsMobileMenuOpen(true)}
-                className="md:hidden text-black dark:text-white hover:bg-white/10 transition-all duration-200"
+                className="md:hidden text-foreground hover:bg-white/10 transition-all duration-200"
               >
                 <div className="relative w-5 h-5 flex flex-col justify-center gap-1">
                   <span className={`block h-0.5 w-5 bg-current transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`}></span>
@@ -76,33 +100,17 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
               </Button>
 
               {/* Logo */}
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 1500 1500" 
-                className="h-10 w-10"
-              >
-                <defs>
-                  <filter x="0%" y="0%" width="100%" height="100%" id="04cefa66ed">
-                    <feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" colorInterpolationFilters="sRGB"/>
-                  </filter>
-                </defs>
-                <g transform="matrix(1, 0, 0, 1, 367, 147)">
-                  <g fill="#ffcc00" fillOpacity="1">
-                    <g transform="translate(0.352463, 823.196833)">
-                      <path d="M 401.578125 -767.578125 C 361.796875 -767.578125 333.300781 -761.265625 316.09375 -748.640625 C 298.882812 -736.023438 290.28125 -710.597656 290.28125 -672.359375 L 290.28125 -96.375 C 290.28125 -80.3125 293.53125 -68.835938 300.03125 -61.953125 C 306.53125 -55.066406 317.429688 -51.625 332.734375 -51.625 L 503.6875 -51.625 C 543.46875 -51.625 576.359375 -56.785156 602.359375 -67.109375 C 628.367188 -77.441406 650.742188 -94.269531 669.484375 -117.59375 C 688.222656 -140.925781 706.390625 -174.007812 723.984375 -216.84375 L 743.484375 -209.96875 L 676.9375 0 L 48.1875 0 L 48.1875 -20.65625 L 56.21875 -20.65625 C 95.226562 -20.65625 123.335938 -27.535156 140.546875 -41.296875 C 157.753906 -55.066406 166.359375 -79.929688 166.359375 -115.890625 L 166.359375 -673.5 C 166.359375 -708.6875 157.367188 -733.160156 139.390625 -746.921875 C 121.421875 -760.691406 93.316406 -767.578125 55.078125 -767.578125 L 48.1875 -767.578125 L 48.1875 -788.234375 L 401.578125 -788.234375 Z M 401.578125 -767.578125"/>
-                    </g>
-                  </g>
-                </g>
-                <path fill="#ffcc00" d="M 93.988281 1137.414062 L 128.601562 1177.882812 L 147.8125 1231.527344 C 147.8125 1231.527344 306.3125 1211.273438 456.9375 1255.898438 C 607.5625 1300.535156 750.304688 1410.054688 750.304688 1410.054688 C 750.304688 1410.054688 643.519531 1278.933594 479.441406 1210.777344 C 315.355469 1142.617188 93.988281 1137.414062 93.988281 1137.414062"/>
-                <path fill="#ffcc00" d="M 1406.351562 1137.414062 L 1371.742188 1177.882812 L 1352.53125 1231.527344 C 1352.53125 1231.527344 1194.03125 1211.273438 1043.40625 1255.898438 C 892.777344 1300.535156 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 856.824219 1278.933594 1020.902344 1210.777344 C 1184.984375 1142.617188 1406.351562 1137.414062 1406.351562 1137.414062"/>
-                <path fill="#ffcc00" d="M 148.414062 1001.59375 C 148.414062 1001.59375 164.109375 1028.214844 172.835938 1055.007812 C 181.566406 1081.804688 183.328125 1108.777344 183.328125 1108.777344 C 183.328125 1108.777344 345.933594 1119.007812 487.609375 1194.324219 C 629.289062 1269.640625 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 658.234375 1256.855469 507.832031 1154.742188 C 357.425781 1052.628906 148.414062 1001.59375 148.414062 1001.59375"/>
-                <path fill="#ffcc00" d="M 1351.664062 1001.59375 C 1351.664062 1001.59375 1335.964844 1028.214844 1327.238281 1055.007812 C 1318.515625 1081.804688 1316.746094 1108.777344 1316.746094 1108.777344 C 1316.746094 1108.777344 1154.144531 1119.007812 1012.46875 1194.324219 C 870.789062 1269.640625 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 841.84375 1256.855469 992.246094 1154.742188 C 1142.648438 1052.628906 1351.664062 1001.59375 1351.664062 1001.59375"/>
-                <path fill="#ffcc00" d="M 232.304688 899.429688 C 232.304688 899.429688 243.832031 925.25 247.566406 953.1875 C 251.300781 981.117188 247.238281 1011.160156 247.238281 1011.160156 C 247.238281 1011.160156 405.300781 1050.65625 531 1150.378906 C 656.703125 1250.101562 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 699.085938 1242.511719 569.652344 1114.859375 C 440.214844 987.195312 232.304688 899.429688 232.304688 899.429688"/>
-                <path fill="#ffcc00" d="M 1267.773438 899.429688 C 1267.773438 899.429688 1256.242188 925.25 1252.507812 953.1875 C 1248.78125 981.117188 1252.832031 1011.160156 1252.832031 1011.160156 C 1252.832031 1011.160156 1094.773438 1050.65625 969.078125 1150.378906 C 843.375 1250.101562 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 800.992188 1242.511719 930.425781 1114.859375 C 1059.863281 987.195312 1267.773438 899.429688 1267.773438 899.429688"/>
-              </svg>
-              <h1 className="font-['Times'] text-2xl font-bold text-black dark:text-white drop-shadow-lg">
-                Lexora Sub-System
-              </h1>
+              <img 
+                src="./public/Lexora-icon.svg" 
+                alt="Lexora" 
+                className="h-10 w-auto"
+              />
+              <div className="flex flex-col">
+                <h1 className="text-1xl md:text-3xl font-bold tracking-wide text-[#2B4C7E] dark:text-[#dbe8fc] transition-colors duration-300" style={{ fontFamily: 'Times, serif' }}>L E X O R A</h1>
+                <p className="text-[9px] md:text-[10px] font-semibold tracking-[0.15em] text-[#1f437a] dark:text-[#dbe8fc] uppercase">
+                Words That Open Worlds
+              </p>
+              </div>
             </div>
             
             {/* Desktop Navigation - Right Aligned */}
@@ -115,8 +123,8 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                     onClick={() => setCurrentPage(item.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 ${
                       currentPage === item.id
-                        ? 'bg-white/20 text-black dark:text-white backdrop-blur-sm shadow-lg'
-                        : 'text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-foreground backdrop-blur-sm shadow-lg'
+                        : 'text-foreground/70 hover:text-foreground hover:bg-white/10'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -130,7 +138,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="rounded-full text-black dark:text-white hover:bg-white/10"
+                className="rounded-full text-foreground hover:bg-white/10"
               >
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -141,7 +149,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/10">
-                    <Avatar className="h-9 w-9 ring-2 ring-black/30 dark:ring-white/30">
+                    <Avatar className="h-9 w-9 ring-2 ring-foreground/30">
                       <AvatarImage src="" alt="Admin" />
                       <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
                         AD
@@ -149,7 +157,7 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
+                <DropdownMenuContent align="end" className="w-56 bg-card/95 backdrop-blur-md">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium">Admin User</p>
@@ -166,7 +174,10 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-destructive focus:text-destructive" 
+                    onClick={onLogout}
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>
@@ -174,28 +185,17 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
               </DropdownMenu>
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile - Theme Toggle */}
             <div className="flex items-center gap-2 md:hidden">
-              {/* Mobile Theme Toggle */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="text-black dark:text-white hover:bg-white/10"
+                className="text-foreground hover:bg-white/10"
               >
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="text-black dark:text-white hover:bg-white/10"
-              >
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Open menu</span>
               </Button>
             </div>
           </div>
@@ -204,26 +204,15 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
 
       {/* Mobile Sidebar */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-white/20">
+        <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-card/95 backdrop-blur-xl border-border">
           <SheetHeader>
             <SheetTitle>
               <div className="flex items-center gap-2">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 1500 1500" 
-                  className="h-8 w-8"
-                >
-                  <g transform="matrix(1, 0, 0, 1, 367, 147)">
-                    <g fill="#ffcc00" fillOpacity="1">
-                      <g transform="translate(0.352463, 823.196833)">
-                        <path d="M 401.578125 -767.578125 C 361.796875 -767.578125 333.300781 -761.265625 316.09375 -748.640625 C 298.882812 -736.023438 290.28125 -710.597656 290.28125 -672.359375 L 290.28125 -96.375 C 290.28125 -80.3125 293.53125 -68.835938 300.03125 -61.953125 C 306.53125 -55.066406 317.429688 -51.625 332.734375 -51.625 L 503.6875 -51.625 C 543.46875 -51.625 576.359375 -56.785156 602.359375 -67.109375 C 628.367188 -77.441406 650.742188 -94.269531 669.484375 -117.59375 C 688.222656 -140.925781 706.390625 -174.007812 723.984375 -216.84375 L 743.484375 -209.96875 L 676.9375 0 L 48.1875 0 L 48.1875 -20.65625 L 56.21875 -20.65625 C 95.226562 -20.65625 123.335938 -27.535156 140.546875 -41.296875 C 157.753906 -55.066406 166.359375 -79.929688 166.359375 -115.890625 L 166.359375 -673.5 C 166.359375 -708.6875 157.367188 -733.160156 139.390625 -746.921875 C 121.421875 -760.691406 93.316406 -767.578125 55.078125 -767.578125 L 48.1875 -767.578125 L 48.1875 -788.234375 L 401.578125 -788.234375 Z M 401.578125 -767.578125"/>
-                      </g>
-                    </g>
-                  </g>
-                  <path fill="#ffcc00" d="M 93.988281 1137.414062 L 128.601562 1177.882812 L 147.8125 1231.527344 C 147.8125 1231.527344 306.3125 1211.273438 456.9375 1255.898438 C 607.5625 1300.535156 750.304688 1410.054688 750.304688 1410.054688 C 750.304688 1410.054688 643.519531 1278.933594 479.441406 1210.777344 C 315.355469 1142.617188 93.988281 1137.414062 93.988281 1137.414062"/>
-                  <path fill="#ffcc00" d="M 1406.351562 1137.414062 L 1371.742188 1177.882812 L 1352.53125 1231.527344 C 1352.53125 1231.527344 1194.03125 1211.273438 1043.40625 1255.898438 C 892.777344 1300.535156 750.039062 1410.054688 750.039062 1410.054688 C 750.039062 1410.054688 856.824219 1278.933594 1020.902344 1210.777344 C 1184.984375 1142.617188 1406.351562 1137.414062 1406.351562 1137.414062"/>
-                </svg>
-                <span>Lexora Sub-System</span>
+                <img 
+                  src="/Lexora-logo.svg" 
+                  alt="Lexora" 
+                  className="h-8 w-auto brightness-90 dark:brightness-200 transition-all duration-300"
+                />
               </div>
             </SheetTitle>
             <SheetDescription>
@@ -276,7 +265,10 @@ export default function Layout({ children, currentPage, setCurrentPage }: Layout
                 <Settings className="h-5 w-5" />
                 <span className="font-medium">Settings</span>
               </button>
-              <button className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-destructive hover:bg-destructive/10">
+              <button 
+                className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-destructive hover:bg-destructive/10"
+                onClick={onLogout}
+              >
                 <LogOut className="h-5 w-5" />
                 <span className="font-medium">Log out</span>
               </button>

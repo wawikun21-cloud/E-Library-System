@@ -3,11 +3,21 @@ import Layout from './components/layout'
 import HomePage from './components/pages/dashboard'
 import BooksPage from './components/pages/books'
 import BorrowedPage from './components/pages/borrowed'
-import { ThemeProvider } from './components/ui/theme-provider'
+import LoginPage from './components/pages/login'
 import './index.css'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  const handleLogin = () => {
+    setIsAuthenticated(true)
+  }
+
+  const handleLogout = () => {
+    setIsAuthenticated(false)
+    setCurrentPage('dashboard')
+  }
 
   const renderPage = () => {
     switch (currentPage) {
@@ -22,12 +32,20 @@ function App() {
     }
   }
 
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
+  // Show main app if authenticated
   return (
-    <ThemeProvider defaultTheme="system" storageKey="nemco-library-theme">
-      <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
-        {renderPage()}
-      </Layout>
-    </ThemeProvider>
+    <Layout 
+      currentPage={currentPage} 
+      setCurrentPage={setCurrentPage}
+      onLogout={handleLogout}
+    >
+      {renderPage()}
+    </Layout>
   )
 }
 

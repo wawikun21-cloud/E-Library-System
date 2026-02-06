@@ -142,49 +142,57 @@ export default function BooksPage() {
   return (
     <>
       <style>{`
-        /* Custom scrollbar styling for modal */
-        .custom-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: transparent transparent;
-          transition: scrollbar-color 0.3s ease;
-        }
-        
-        .custom-scrollbar:hover {
-          scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
-        }
-        
+        /* Custom scrollbar for modal */
         .custom-scrollbar::-webkit-scrollbar {
           width: 8px;
         }
-        
+
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
+          background: rgba(151, 112, 255, 0.05);
+          border-radius: 10px;
         }
-        
+
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: transparent;
-          border-radius: 4px;
+          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          border-radius: 10px;
           transition: background 0.3s ease;
         }
-        
-        .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-          background: rgba(155, 155, 155, 0.5);
-        }
-        
+
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(155, 155, 155, 0.7);
+          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
         }
-        
-        .dark .custom-scrollbar:hover {
-          scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+
+        /* Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #9770FF rgba(151, 112, 255, 0.05);
         }
-        
-        .dark .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.3);
+
+        /* Custom scrollbar for page */
+        ::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
         }
-        
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.5);
+
+        ::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          border-radius: 10px;
+          transition: background 0.3s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
+        }
+
+        /* Firefox */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: #9770FF rgba(0, 0, 0, 0.05);
         }
       `}</style>
       
@@ -197,7 +205,10 @@ export default function BooksPage() {
               Manage your book collection with ease
             </p>
           </div>
-          <Button onClick={() => setIsFormOpen(true)} size="lg" className="gap-2">
+          <Button 
+            onClick={() => setIsFormOpen(true)} 
+            className="gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg hover:shadow-xl transition-all"
+          >
             <Plus className="h-4 w-4" />
             Add New Book
           </Button>
@@ -316,26 +327,27 @@ export default function BooksPage() {
           </div>
         )}
 
-        {/* Add/Edit Book Dialog */}
+        {/* Add/Edit Book Dialog - MINIMIZED */}
         <Dialog open={isFormOpen} onOpenChange={(open) => !open && resetForm()}>
-          <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto custom-scrollbar bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-white/20 dark:border-white/10">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-[#9770FF]" />
                 {editingBook ? 'Edit Book' : 'Add New Book'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs">
                 {editingBook 
                   ? 'Update the book information below.'
                   : 'Fill in the details to add a new book to your library.'}
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Cover Image Upload */}
-              <div className="space-y-2">
-                <Label>Book Cover</Label>
+            <form onSubmit={handleSubmit} className="space-y-3 py-2">
+              {/* Cover Image Upload - Compact */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Book Cover</Label>
                 {previewImage ? (
-                  <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto">
+                  <div className="relative aspect-[3/4] w-full max-w-[140px] mx-auto">
                     <img 
                       src={previewImage} 
                       alt="Book cover preview"
@@ -345,23 +357,22 @@ export default function BooksPage() {
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 h-8 w-8 rounded-full"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
                       onClick={removeImage}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                    <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                     <Label htmlFor="cover-upload" className="cursor-pointer">
-                      <span className="text-sm font-medium text-primary hover:underline">
+                      <span className="text-xs font-medium text-primary hover:underline">
                         Click to upload
                       </span>
-                      <span className="text-sm text-muted-foreground"> or drag and drop</span>
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      PNG, JPG, WEBP (max 5MB)
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      PNG, JPG (max 5MB)
                     </p>
                     <Input
                       id="cover-upload"
@@ -374,57 +385,73 @@ export default function BooksPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="title" className="text-xs font-medium">Title *</Label>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Enter book title"
+                  className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
                   required
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="author">Author *</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="author" className="text-xs font-medium">Author *</Label>
                 <Input
                   id="author"
                   value={formData.author}
                   onChange={(e) => setFormData({ ...formData, author: e.target.value })}
                   placeholder="Enter author name"
+                  className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
                   required
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="isbn">ISBN *</Label>
-                <Input
-                  id="isbn"
-                  value={formData.isbn}
-                  onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-                  placeholder="Enter ISBN number"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="isbn" className="text-xs font-medium">ISBN *</Label>
+                  <Input
+                    id="isbn"
+                    value={formData.isbn}
+                    onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+                    placeholder="ISBN number"
+                    className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="quantity" className="text-xs font-medium">Quantity *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="0"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                    className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="0"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
-                  required
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetForm}>
+              <DialogFooter className="gap-2 sm:gap-2 pt-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={resetForm}
+                  className="gap-1.5 h-9 text-sm"
+                >
+                  <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingBook ? 'Update Book' : 'Add Book'}
+                <Button 
+                  type="submit"
+                  className="gap-1.5 h-9 text-sm bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {editingBook ? 'Update' : 'Add Book'}
                 </Button>
               </DialogFooter>
             </form>
@@ -433,7 +460,7 @@ export default function BooksPage() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!deleteBook} onOpenChange={(open) => !open && setDeleteBook(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent className="sm:max-w-[425px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-white/20 dark:border-white/10">
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -443,7 +470,10 @@ export default function BooksPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogAction 
+                onClick={handleDelete} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
                 Delete Book
               </AlertDialogAction>
             </AlertDialogFooter>

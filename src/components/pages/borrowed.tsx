@@ -1,19 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   Calendar, 
   User, 
   BookOpen, 
   Search, 
-  // Filter,
-  // ArrowUpDown,
   CheckCircle2,
   Clock,
   AlertCircle,
-  Plus
+  Plus,
+  X
 } from "lucide-react"
 
 interface BorrowedBook {
@@ -83,7 +84,28 @@ export default function BorrowedPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'overdue' | 'returned'>('all')
-  // const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false)
+
+  // New transaction form state
+  const [newTransaction, setNewTransaction] = useState({
+    bookTitle: '',
+    bookId: '',
+    studentName: '',
+    studentId: '',
+    borrowDate: new Date().toISOString().split('T')[0],
+    dueDate: ''
+  })
+
+  // Scroll indicator logic
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollIndicator(window.scrollY > 100)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Filter and search logic
   const filteredBooks = borrowedBooks.filter(book => {
@@ -159,6 +181,35 @@ export default function BorrowedPage() {
     }))
   }
 
+  const handleCreateTransaction = () => {
+    // Generate new transaction ID
+    const newId = `T${String(borrowedBooks.length + 1).padStart(3, '0')}`
+    
+    const transaction: BorrowedBook = {
+      id: newId,
+      bookTitle: newTransaction.bookTitle,
+      bookId: newTransaction.bookId,
+      studentName: newTransaction.studentName,
+      studentId: newTransaction.studentId,
+      borrowDate: newTransaction.borrowDate,
+      dueDate: newTransaction.dueDate,
+      status: 'active'
+    }
+
+    setBorrowedBooks([...borrowedBooks, transaction])
+    setIsModalOpen(false)
+    
+    // Reset form
+    setNewTransaction({
+      bookTitle: '',
+      bookId: '',
+      studentName: '',
+      studentId: '',
+      borrowDate: new Date().toISOString().split('T')[0],
+      dueDate: ''
+    })
+  }
+
   const stats = {
     total: borrowedBooks.length,
     active: borrowedBooks.filter(b => b.status === 'active').length,
@@ -187,13 +238,21 @@ export default function BorrowedPage() {
 
   return (
     <div className="space-y-6">
+      {/* Scroll Indicator */}
+      {showScrollIndicator && (
+        <div className="fixed top-20 left-0 right-0 h-1 bg-gradient-to-r from-[#9770FF] to-[#0033FF] z-40 animate-pulse shadow-lg" />
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Borrowed Books</h1>
           <p className="text-muted-foreground mt-1">Track and manage all borrowed items</p>
         </div>
-        <Button className="gap-2">
+        <Button 
+          className="gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg hover:shadow-xl transition-all"
+          onClick={() => setIsModalOpen(true)}
+        >
           <Plus className="h-4 w-4" />
           New Transaction
         </Button>
@@ -485,6 +544,189 @@ export default function BorrowedPage() {
           })}
         </div>
       )}
+
+      {/* New Transaction Modal - MINIMIZED */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto custom-scrollbar bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-white/20 dark:border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Plus className="h-5 w-5 text-[#9770FF]" />
+              New Transaction
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Fill in the details below to create a new borrowing transaction.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {/* Book Title */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bookTitle" className="text-xs font-medium">Book Title *</Label>
+              <Input
+                id="bookTitle"
+                placeholder="Enter book title"
+                value={newTransaction.bookTitle}
+                onChange={(e) => setNewTransaction({...newTransaction, bookTitle: e.target.value})}
+                className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                required
+              />
+            </div>
+
+            {/* Book ID */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bookId" className="text-xs font-medium">Book ID *</Label>
+              <Input
+                id="bookId"
+                placeholder="e.g., B001"
+                value={newTransaction.bookId}
+                onChange={(e) => setNewTransaction({...newTransaction, bookId: e.target.value})}
+                className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                required
+              />
+            </div>
+
+            {/* Student Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="studentName" className="text-xs font-medium">Student Name *</Label>
+              <Input
+                id="studentName"
+                placeholder="Enter student name"
+                value={newTransaction.studentName}
+                onChange={(e) => setNewTransaction({...newTransaction, studentName: e.target.value})}
+                className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                required
+              />
+            </div>
+
+            {/* Student ID */}
+            <div className="space-y-1.5">
+              <Label htmlFor="studentId" className="text-xs font-medium">Student ID *</Label>
+              <Input
+                id="studentId"
+                placeholder="e.g., S001"
+                value={newTransaction.studentId}
+                onChange={(e) => setNewTransaction({...newTransaction, studentId: e.target.value})}
+                className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                required
+              />
+            </div>
+
+            {/* Dates - Side by Side */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="borrowDate" className="text-xs font-medium">Borrow Date *</Label>
+                <Input
+                  id="borrowDate"
+                  type="date"
+                  value={newTransaction.borrowDate}
+                  onChange={(e) => setNewTransaction({...newTransaction, borrowDate: e.target.value})}
+                  className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dueDate" className="text-xs font-medium">Due Date *</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={newTransaction.dueDate}
+                  onChange={(e) => setNewTransaction({...newTransaction, dueDate: e.target.value})}
+                  className="h-9 text-sm bg-white/50 dark:bg-slate-800/50"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsModalOpen(false)}
+              className="gap-1.5 h-9 text-sm"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateTransaction}
+              disabled={
+                !newTransaction.bookTitle || 
+                !newTransaction.bookId || 
+                !newTransaction.studentName || 
+                !newTransaction.studentId || 
+                !newTransaction.dueDate
+              }
+              className="gap-1.5 h-9 text-sm bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Styles */}
+      <style>{`
+        .sticky-search-bar {
+          position: sticky;
+          top: 80px;
+          z-index: 10;
+        }
+
+        /* Custom scrollbar for modal */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(151, 112, 255, 0.05);
+          border-radius: 10px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          border-radius: 10px;
+          transition: background 0.3s ease;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
+        }
+
+        /* Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #9770FF rgba(151, 112, 255, 0.05);
+        }
+
+        /* Custom scrollbar for page */
+        ::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          border-radius: 10px;
+          transition: background 0.3s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
+        }
+
+        /* Firefox */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: #9770FF rgba(0, 0, 0, 0.05);
+        }
+      `}</style>
     </div>
   )
 }
