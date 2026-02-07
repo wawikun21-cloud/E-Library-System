@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react'
-import { LayoutDashboard, BookOpen, BookMarked, User, LogOut, Settings, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, BookOpen, BookMarked, User, LogOut, Sun, Moon, Lock, AlertCircle } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,7 +10,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+import { authService } from '@/lib/api'
 
 // User type definition
 interface UserData {
@@ -33,6 +46,22 @@ interface LayoutProps {
 export default function Layout({ children, currentPage, setCurrentPage, onLogout, user }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+
+  // Get user data from localStorage
+  const userData = JSON.parse(localStorage.getItem('user') || '{}')
+  
+  // Profile form state
+  const [fullName, setFullName] = useState(userData.full_name || '')
+  const [username, setUsername] = useState(userData.username || '')
+  
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // Load theme from localStorage on mount
   useEffect(() => {
@@ -75,6 +104,121 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
   const handleNavClick = (pageId: string) => {
     setCurrentPage(pageId)
     setIsMobileMenuOpen(false)
+  }
+
+  const handleProfileClick = () => {
+    setIsProfileModalOpen(true)
+    setError("")
+    setSuccess("")
+    // Reset form to current user data
+    const userData = JSON.parse(localStorage.getItem('user') || '{}')
+    setFullName(userData.full_name || '')
+    setUsername(userData.username || '')
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  const handleUpdateProfile = async () => {
+    setError("")
+    setSuccess("")
+    setIsLoading(true)
+
+    try {
+      // Validate inputs
+      if (!fullName.trim() || !username.trim()) {
+        setError("Full name and username are required")
+        setIsLoading(false)
+        return
+      }
+
+      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+
+      // Update profile
+      const response = await authService.updateProfile(
+        userData.user_id,
+        fullName.trim(),
+        username.trim()
+      )
+
+      if (response.success) {
+        // Update localStorage
+        const updatedUser = {
+          ...userData,
+          full_name: fullName.trim(),
+          username: username.trim(),
+        }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        
+        setSuccess("Profile updated successfully!")
+        
+        // Close modal after 1.5 seconds
+        setTimeout(() => {
+          setIsProfileModalOpen(false)
+          window.location.reload() // Reload to reflect changes
+        }, 1500)
+      } else {
+        setError(response.message || "Failed to update profile")
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred while updating profile")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleUpdatePassword = async () => {
+    setError("")
+    setSuccess("")
+    setIsLoading(true)
+
+    try {
+      // Validate inputs
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setError("All password fields are required")
+        setIsLoading(false)
+        return
+      }
+
+      if (newPassword.length < 6) {
+        setError("New password must be at least 6 characters")
+        setIsLoading(false)
+        return
+      }
+
+      if (newPassword !== confirmPassword) {
+        setError("New passwords do not match")
+        setIsLoading(false)
+        return
+      }
+
+      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+
+      // Update password
+      const response = await authService.updatePassword(
+        userData.user_id,
+        currentPassword,
+        newPassword
+      )
+
+      if (response.success) {
+        setSuccess("Password updated successfully!")
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        
+        // Close modal after 1.5 seconds
+        setTimeout(() => {
+          setIsProfileModalOpen(false)
+        }, 1500)
+      } else {
+        setError(response.message || "Failed to update password")
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred while updating password")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -170,11 +314,11 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
               </Button>
-              
-              {/* Profile Dropdown - Now with real user data */}
+
+              {/* User Avatar Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/10">
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-white/10">
                     <Avatar className="h-9 w-9 ring-2 ring-foreground/30">
                       <AvatarImage src="" alt={displayName} />
                       <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
@@ -196,13 +340,9 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer">
+                  <DropdownMenuItem className="cursor-pointer" onClick={handleProfileClick}>
                     <User className="mr-2 h-4 w-4" />
                     Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
@@ -291,13 +431,12 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
             
             {/* Mobile Profile Links */}
             <div className="mt-4 pt-4 border-t space-y-2">
-              <button className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-muted-foreground hover:text-foreground hover:bg-accent">
+              <button 
+                className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-muted-foreground hover:text-foreground hover:bg-accent"
+                onClick={handleProfileClick}
+              >
                 <User className="h-5 w-5" />
                 <span className="font-medium">Profile</span>
-              </button>
-              <button className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-muted-foreground hover:text-foreground hover:bg-accent">
-                <Settings className="h-5 w-5" />
-                <span className="font-medium">Settings</span>
               </button>
               <button 
                 className="flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left w-full text-destructive hover:bg-destructive/10"
@@ -310,6 +449,142 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
           </nav>
         </SheetContent>
       </Sheet>
+
+      {/* Profile Edit Modal */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="sm:max-w-[420px] max-h-[85vh]">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg">Edit Profile</DialogTitle>
+            <DialogDescription className="text-sm">
+              Update your information
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1 overflow-y-auto max-h-[calc(85vh-140px)]">
+            {/* Error/Success Messages */}
+            {error && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert className="bg-green-50 text-green-900 border-green-200 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{success}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Profile Information Section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <User className="h-4 w-4" />
+                <span>Profile Information</span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label htmlFor="fullName" className="text-sm">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter your full name"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="username" className="text-sm">Username</Label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleUpdateProfile}
+                  disabled={isLoading}
+                  className="w-full h-9"
+                  size="sm"
+                >
+                  {isLoading ? 'Updating...' : 'Update Profile'}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Change Password Section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Lock className="h-4 w-4" />
+                <span>Change Password</span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label htmlFor="currentPassword" className="text-sm">Current Password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="newPassword" className="text-sm">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="confirmPassword" className="text-sm">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleUpdatePassword}
+                  disabled={isLoading}
+                  variant="secondary"
+                  className="w-full h-9"
+                  size="sm"
+                >
+                  {isLoading ? 'Updating...' : 'Change Password'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content - Add padding top to prevent content from hiding under fixed nav */}
       <main className="container mx-auto px-4 py-8 pt-24 relative">

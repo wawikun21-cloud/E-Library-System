@@ -50,6 +50,41 @@ export const authService = {
       }
     }
   },
+  // Update user profile (fullname and username)
+  updateProfile: async (userId: number, fullName: string, username: string) => {
+    try {
+      const response = await api.put('/admin/profile', {
+        userId,
+        fullName,
+        username,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(error.response.data.message || 'Failed to update profile');
+      } else {
+        throw new Error('Cannot connect to server');
+      }
+    }
+  },
+
+  // Update password
+  updatePassword: async (userId: number, currentPassword: string, newPassword: string) => {
+    try {
+      const response = await api.put('/admin/password', {
+        userId,
+        currentPassword,
+        newPassword,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(error.response.data.message || 'Failed to update password');
+      } else {
+        throw new Error('Cannot connect to server');
+      }
+    }
+  },
 };
 
 // Export the axios instance for custom requests if needed
