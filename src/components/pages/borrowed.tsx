@@ -28,7 +28,20 @@ interface BorrowedBook {
   status: 'active' | 'overdue' | 'returned'
 }
 
-export default function BorrowedPage() {
+interface UserData {
+  user_id: number;
+  username: string;
+  full_name: string;
+  email: string;
+  role: string;
+  last_login: string | null;
+}
+
+interface BorrowedPageProps {
+  user?: UserData | null;
+}
+
+export default function BorrowedPage({ user }: BorrowedPageProps) {
   const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBook[]>([
     {
       id: "T001",

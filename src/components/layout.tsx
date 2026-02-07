@@ -12,14 +12,25 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
+// User type definition
+interface UserData {
+  user_id: number;
+  username: string;
+  full_name: string;
+  email: string;
+  role: string;
+  last_login: string | null;
+}
+
 interface LayoutProps {
   children: ReactNode
   currentPage: string
   setCurrentPage: (page: string) => void
   onLogout: () => void
+  user: UserData | null  // Added user prop
 }
 
-export default function Layout({ children, currentPage, setCurrentPage, onLogout }: LayoutProps) {
+export default function Layout({ children, currentPage, setCurrentPage, onLogout, user }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
@@ -39,6 +50,21 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
     localStorage.setItem('lexora-theme', newTheme)
     document.documentElement.classList.toggle('dark', newTheme === 'dark')
   }
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user) return 'U'
+    const names = user.full_name.split(' ')
+    if (names.length >= 2) {
+      return `${names[0][0]}${names[1][0]}`.toUpperCase()
+    }
+    return user.full_name.substring(0, 2).toUpperCase()
+  }
+
+  // Get display name (fallback if user is null)
+  const displayName = user?.full_name || 'User'
+  const displayEmail = user?.email || 'user@library.com'
+  const displayRole = user?.role || 'user'
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -101,7 +127,7 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
 
               {/* Logo */}
               <img 
-                src="./public/Lexora-icon.svg" 
+                src="../public/lexora-icon.svg" 
                 alt="Lexora" 
                 className="h-10 w-auto"
               />
@@ -145,14 +171,14 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                 <span className="sr-only">Toggle theme</span>
               </Button>
               
-              {/* Profile Dropdown */}
+              {/* Profile Dropdown - Now with real user data */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/10">
                     <Avatar className="h-9 w-9 ring-2 ring-foreground/30">
-                      <AvatarImage src="" alt="Admin" />
+                      <AvatarImage src="" alt={displayName} />
                       <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
-                        AD
+                        {getUserInitials()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -160,8 +186,13 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                 <DropdownMenuContent align="end" className="w-56 bg-card/95 backdrop-blur-md">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">Admin User</p>
-                      <p className="text-xs text-muted-foreground">admin@library.com</p>
+                      <p className="text-sm font-medium">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">{displayEmail}</p>
+                      <p className="text-xs text-muted-foreground capitalize mt-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          {displayRole}
+                        </span>
+                      </p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -202,14 +233,14 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
         </div>
       </nav>
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar - Now with real user data */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-card/95 backdrop-blur-xl border-border">
           <SheetHeader>
             <SheetTitle>
               <div className="flex items-center gap-2">
                 <img 
-                  src="/Lexora-logo.svg" 
+                  src="./public/Lexora-logo.svg" 
                   alt="Lexora" 
                   className="h-8 w-auto brightness-90 dark:brightness-200 transition-all duration-300"
                 />
@@ -220,18 +251,21 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
             </SheetDescription>
           </SheetHeader>
           
-          {/* Mobile Profile Section */}
+          {/* Mobile Profile Section - Now with real user data */}
           <div className="mt-6 mb-4 p-4 rounded-lg bg-gradient-to-r from-[#9770FF]/10 to-[#0033FF]/10 border border-[#9770FF]/20">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10 ring-2 ring-[#9770FF]/50">
-                <AvatarImage src="" alt="Admin" />
+                <AvatarImage src="" alt={displayName} />
                 <AvatarFallback className="bg-gradient-to-br from-[#9770FF] to-[#0033FF] text-white">
-                  AD
+                  {getUserInitials()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin User</p>
-                <p className="text-xs text-muted-foreground truncate">admin@library.com</p>
+                <p className="text-sm font-medium truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mt-1 capitalize">
+                  {displayRole}
+                </span>
               </div>
             </div>
           </div>

@@ -24,6 +24,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+
+interface UserData {
+  user_id: number;
+  username: string;
+  full_name: string;
+  email: string;
+  role: string;
+  last_login: string | null;
+}
+
+interface HomePageProps {
+  user?: UserData | null;
+}
 interface Announcement {
   id: number
   title: string
@@ -41,7 +54,7 @@ interface Appointment {
   status: 'pending' | 'confirmed' | 'completed'
 }
 
-export default function HomePage() {
+export default function HomePage({ user }: HomePageProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [formData, setFormData] = useState({
     title: '',

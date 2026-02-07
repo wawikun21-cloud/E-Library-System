@@ -30,6 +30,19 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
+
+interface UserData {
+  user_id: number;
+  username: string;
+  full_name: string;
+  email: string;
+  role: string;
+  last_login: string | null;
+}
+
+interface BooksPageProps {
+  user?: UserData | null;
+}
 interface Book {
   id: number
   title: string
@@ -39,7 +52,7 @@ interface Book {
   coverImage?: string // Base64 or URL
 }
 
-export default function BooksPage() {
+export default function BooksPage({ user }: BooksPageProps) {
   const [books, setBooks] = useState<Book[]>([])
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)

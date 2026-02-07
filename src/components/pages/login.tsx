@@ -1,17 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Lock, User, AlertCircle } from 'lucide-react'
-
-// Default credentials
-const DEFAULT_USERNAME = 'admin'
-const DEFAULT_PASSWORD = 'admin123'
+import { authService } from '@/lib/api'
 
 interface LoginPageProps {
-  onLogin: () => void
+  onLogin: (userData: any) => void
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
@@ -20,20 +17,38 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Reset form when component mounts (after logout)
+  useEffect(() => {
+    setUsername('')
+    setPassword('')
+    setError('')
+    setIsLoading(false)
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
 
-    // Simulate a brief loading delay
-    setTimeout(() => {
-      if (username === DEFAULT_USERNAME && password === DEFAULT_PASSWORD) {
-        onLogin()
+    try {
+      // Call the login API
+      const response = await authService.login(username, password)
+      
+      if (response.success) {
+        // Store user data in localStorage
+        localStorage.setItem('user', JSON.stringify(response.user))
+        localStorage.setItem('isAuthenticated', 'true')
+        
+        // Call the onLogin callback with user data
+        onLogin(response.user)
       } else {
-        setError('Invalid username or password')
+        setError(response.message || 'Login failed')
       }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during login')
+    } finally {
       setIsLoading(false)
-    }, 500)
+    }
   }
 
   return (
@@ -56,12 +71,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         <CardHeader className="space-y-4 text-center">
           {/* Logo */}
           <div className="flex justify-center">
-           <img className='w-30 m-0 p-0' src="./public/lexora-logo.svg" alt="" />
+           <img className='w-30 m-0 p-0' src="./public/lexora-logo.svg" alt="Lexora Logo" />
           </div>
           
           <div>
             <CardDescription className="text-base mt-2">
-              Sign in to Lexora Appointment System
+              Sign in to Lexora Library System
             </CardDescription>
           </div>
         </CardHeader>
@@ -76,46 +91,54 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </Alert>
             )}
 
-            {/* Username Field */}
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10"
-                  required
-                  autoComplete="username"
-                />
-              </div>
+          {/* Username Field */}
+            <div className="relative mt-6">
+              <Input
+                id="username"
+                type="text"
+                placeholder=" "
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="pl-10 bg-white peer pt-4 pb-2 border-gray-300"
+                required
+                autoComplete="username"
+                disabled={isLoading}
+              />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 peer-focus:top-4 transition-all duration-200" />
+              <Label 
+                htmlFor="username" 
+                className="absolute left-10 top-1/2 -translate-y-1/2 text-base text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-600 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-600"
+              >
+                Username
+              </Label>
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+           {/* Password Field */}
+              <div className="relative mt-6">
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter password"
+                  placeholder=" "
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 bg-white peer pt-4 pb-2 border-gray-300"
                   required
                   autoComplete="current-password"
+                  disabled={isLoading}
                 />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 peer-focus:top-4 transition-all duration-200" />
+                <Label 
+                  htmlFor="password" 
+                  className="absolute left-10 top-1/2 -translate-y-1/2 text-base text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-600 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-600"
+                >
+                  Password
+                </Label>
               </div>
-            </div>
 
             {/* Login Button */}
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full bg-gradient-to-r from-[#2B4C7E] to-[#1f437a] hover:from-[#1f437a] hover:to-[#2B4C7E]" 
               size="lg"
               disabled={isLoading}
             >
