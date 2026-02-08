@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
-import { authService } from '@/lib/api'
+import { authService } from '@/services/api'
 
 // User type definition
 interface UserData {

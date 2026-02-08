@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Lock, User, AlertCircle } from 'lucide-react'
-import { authService } from '@/lib/api'
+import { authService } from '@/services/api'
 
 interface LoginPageProps {
   onLogin: (userData: any) => void

@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { authService } from "@/lib/api";
+import { authService } from "@/services/api";
 
 export function AppSidebar({ currentPage, setCurrentPage }: { 
   currentPage: string

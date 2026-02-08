@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Layout from './components/layout';
+import Layout from './components/layout/layout';
 import HomePage from './components/pages/dashboard';
 import BooksPage from './components/pages/books';
 import BorrowedPage from './components/pages/borrowed';
