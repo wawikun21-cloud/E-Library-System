@@ -11,4 +11,10 @@ router.post('/logout', AuthController.logout);
 // POST /api/auth/verify
 router.post('/verify', AuthController.verifySession);
 
+// PUT /api/auth/profile - Update user profile
+router.put('/profile', AuthController.updateProfile);
+
+// PUT /api/auth/password - Update password
+router.put('/password', AuthController.updatePassword);
+
 module.exports = router;

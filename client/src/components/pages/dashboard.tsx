@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Send, Image as ImageIcon, Calendar, BookCheck, Clock, User, Upload, X, Pencil, Trash2 } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,13 +73,13 @@ export default function HomePage({ user }: HomePageProps) {
     if (file) {
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB')
+        toast.error('Image size should be less than 5MB')
         return
       }
 
       // Check file type
       if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file')
+        toast.error('Please upload an image file')
         return
       }
 
@@ -117,6 +118,7 @@ export default function HomePage({ user }: HomePageProps) {
     setAnnouncements([newAnnouncement, ...announcements])
     setFormData({ title: '', message: '', imageUrl: '' })
     setPreviewImage('')
+    toast.success('Announcement posted successfully!')
   }
 
   const handleEdit = (announcement: Announcement) => {
@@ -144,6 +146,7 @@ export default function HomePage({ user }: HomePageProps) {
             }
           : ann
       ))
+      toast.success('Announcement updated successfully!')
       resetEditForm()
     }
   }
@@ -151,6 +154,7 @@ export default function HomePage({ user }: HomePageProps) {
   const handleDelete = () => {
     if (deleteAnnouncement) {
       setAnnouncements(announcements.filter(ann => ann.id !== deleteAnnouncement.id))
+      toast.success('Announcement deleted successfully!')
       setDeleteAnnouncement(null)
     }
   }

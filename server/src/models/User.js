@@ -78,6 +78,32 @@ class User {
       // Don't throw error for logging failures
     }
   }
+
+  // Update user profile
+  static async updateProfile(userId, fullName, username) {
+    try {
+      await db.query(
+        'UPDATE users SET full_name = ?, username = ?, updated_at = NOW() WHERE user_id = ?',
+        [fullName, username, userId]
+      );
+    } catch (error) {
+      console.error('Error in updateProfile:', error);
+      throw error;
+    }
+  }
+
+  // Update password
+  static async updatePassword(userId, newPassword) {
+    try {
+      await db.query(
+        'UPDATE users SET password = ?, updated_at = NOW() WHERE user_id = ?',
+        [newPassword, userId]
+      );
+    } catch (error) {
+      console.error('Error in updatePassword:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = User;

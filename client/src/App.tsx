@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import Layout from './components/layout/layout';
 import HomePage from './components/pages/dashboard';
 import BooksPage from './components/pages/books';
@@ -22,6 +24,26 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loginKey, setLoginKey] = useState(0) // Force login component to remount
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+
+  // Check theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('lexora-theme') as 'light' | 'dark' | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    }
+
+    // Listen for theme changes
+    const handleStorageChange = () => {
+      const newTheme = localStorage.getItem('lexora-theme') as 'light' | 'dark' | null
+      if (newTheme) {
+        setTheme(newTheme)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
 
   // Check authentication status on app load
   useEffect(() => {
@@ -92,19 +114,49 @@ function App() {
   // Show login page if not authenticated
   // key={loginKey} forces component to fully remount after logout
   if (!isAuthenticated) {
-    return <LoginPage key={loginKey} onLogin={handleLogin} />
+    return (
+      <>
+        <LoginPage key={loginKey} onLogin={handleLogin} />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme={theme}
+        />
+      </>
+    )
   }
 
   // Show main app if authenticated
   return (
-    <Layout 
-      currentPage={currentPage} 
-      setCurrentPage={setCurrentPage}
-      onLogout={handleLogout}
-      user={user}
-    >
-      {renderPage()}
-    </Layout>
+    <>
+      <Layout 
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage}
+        onLogout={handleLogout}
+        user={user}
+      >
+        {renderPage()}
+      </Layout>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme={theme}
+      />
+    </>
   )
 }
 

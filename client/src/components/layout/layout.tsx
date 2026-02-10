@@ -40,7 +40,7 @@ interface LayoutProps {
   currentPage: string
   setCurrentPage: (page: string) => void
   onLogout: () => void
-  user: UserData | null  // Added user prop
+  user: UserData | null
 }
 
 export default function Layout({ children, currentPage, setCurrentPage, onLogout, user }: LayoutProps) {
@@ -373,7 +373,7 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
         </div>
       </nav>
 
-      {/* Mobile Sidebar - Now with real user data */}
+      {/* Mobile Sidebar */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-card/95 backdrop-blur-xl border-border">
           <SheetHeader>
@@ -391,7 +391,7 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
             </SheetDescription>
           </SheetHeader>
           
-          {/* Mobile Profile Section - Now with real user data */}
+          {/* Mobile Profile Section */}
           <div className="mt-6 mb-4 p-4 rounded-lg bg-gradient-to-r from-[#9770FF]/10 to-[#0033FF]/10 border border-[#9770FF]/20">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10 ring-2 ring-[#9770FF]/50">

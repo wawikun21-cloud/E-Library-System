@@ -116,6 +116,117 @@ class AuthController {
       });
     }
   }
+
+  // Update user profile
+  static async updateProfile(req, res) {
+    try {
+      const { userId, fullName, username } = req.body;
+
+      // Validation
+      if (!userId || !fullName || !username) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID, full name, and username are required'
+        });
+      }
+
+      // Check if username is already taken by another user
+      const existingUser = await User.findByUsername(username);
+      if (existingUser && existingUser.user_id !== userId) {
+        return res.status(409).json({
+          success: false,
+          message: 'Username is already taken'
+        });
+      }
+
+      // Update profile
+      await User.updateProfile(userId, fullName, username);
+
+      // Get updated user
+      const updatedUser = await User.findById(userId);
+
+      // Log activity
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      await User.logActivity(userId, 'PROFILE_UPDATE', 'Profile information updated', ipAddress);
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          user_id: updatedUser.user_id,
+          username: updatedUser.username,
+          full_name: updatedUser.full_name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          last_login: updatedUser.last_login
+        }
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update profile'
+      });
+    }
+  }
+
+  // Update password
+  static async updatePassword(req, res) {
+    try {
+      const { userId, currentPassword, newPassword } = req.body;
+
+      // Validation
+      if (!userId || !currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID, current password, and new password are required'
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'New password must be at least 6 characters'
+        });
+      }
+
+      // Get user
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      // Verify current password (plain text comparison)
+      const userWithPassword = await User.findByUsername(user.username);
+      if (userWithPassword.password !== currentPassword) {
+        return res.status(401).json({
+          success: false,
+          message: 'Current password is incorrect'
+        });
+      }
+
+      // Update password
+      await User.updatePassword(userId, newPassword);
+
+      // Log activity
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      await User.logActivity(userId, 'PASSWORD_CHANGE', 'Password changed', ipAddress);
+
+      res.json({
+        success: true,
+        message: 'Password updated successfully'
+      });
+    } catch (error) {
+      console.error('Update password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update password'
+      });
+    }
+  }
 }
 
 module.exports = AuthController;
