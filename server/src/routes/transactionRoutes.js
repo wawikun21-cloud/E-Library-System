@@ -10,6 +10,7 @@ router.get('/unique-borrowers', TransactionController.getUniqueBorrowers);
 router.get('/:id', TransactionController.getTransaction);
 router.post('/', TransactionController.createTransaction);
 router.put('/:id/return', TransactionController.returnBook);
+router.put('/:id/undo-return', TransactionController.undoReturn);
 router.put('/:id/extend', TransactionController.extendDueDate);
 router.post('/update-overdue', TransactionController.updateOverdueStatus);
 

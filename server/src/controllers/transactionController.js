@@ -160,6 +160,49 @@ class TransactionController {
     }
   }
 
+  // Undo return book
+  static async undoReturn(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.body.userId || null;
+
+      await Transaction.undoReturn(id, userId);
+
+      res.json({
+        success: true,
+        message: 'Return undone successfully'
+      });
+    } catch (error) {
+      console.error('Undo return error:', error);
+
+      if (error.message === 'Transaction not found') {
+        return res.status(404).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      if (error.message === 'Book is not in returned status') {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      if (error.message === 'Cannot undo return - no return date found') {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to undo return'
+      });
+    }
+  }
+
   // Extend due date
   static async extendDueDate(req, res) {
     try {

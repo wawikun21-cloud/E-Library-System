@@ -254,6 +254,22 @@ export const transactionService = {
     }
   },
 
+  // Undo return book
+  undoReturn: async (id: number, userId?: number) => {
+    try {
+      const response = await apiClient.put(`/transactions/${id}/undo-return`, {
+        userId
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(error.response.data.message || 'Failed to undo return');
+      } else {
+        throw new Error('Cannot connect to server');
+      }
+    }
+  },
+
   // Extend due date
   extendDueDate: async (id: number, days: number, userId?: number) => {
     try {

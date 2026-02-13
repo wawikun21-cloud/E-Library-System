@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as React from 'react'
 import { toast } from 'react-toastify'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -24,7 +25,10 @@ import {
   Hash,
   GraduationCap,
   Eye,
-  X
+  X,
+  Filter,
+  ChevronDown,
+  Undo2
 } from "lucide-react"
 import { transactionService } from '@/services/api'
 
@@ -46,6 +50,7 @@ interface Transaction {
   return_date?: string | null
   status: 'active' | 'overdue' | 'returned'
   notes?: string
+  created_at?: string
 }
 
 interface Book {
@@ -53,7 +58,9 @@ interface Book {
   title: string
   author: string
   isbn: string
+  category?: string
   available_quantity: number
+  quantity: number
 }
 
 interface UserData {
@@ -78,14 +85,48 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false)
   const [viewingTransaction, setViewingTransaction] = useState<Transaction | null>(null)
+  const [extendingTransaction, setExtendingTransaction] = useState<Transaction | null>(null)
+  const [newDueDate, setNewDueDate] = useState('')
+  const [recentlyReturned, setRecentlyReturned] = useState<number | null>(null)
 
-  // Stats
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    overdue: 0,
-    returned: 0
-  })
+  // Book filter states
+  const [bookSearchQuery, setBookSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedAuthor, setSelectedAuthor] = useState<string>('all')
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(true)
+
+  // Stats - calculated from actual transactions with real-time overdue detection
+  const stats = React.useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Reset time to start of day for accurate comparison
+    
+    let active = 0
+    let overdue = 0
+    let returned = 0
+    
+    transactions.forEach(t => {
+      if (t.status === 'returned') {
+        returned++
+      } else {
+        // Check if transaction is actually overdue based on due date
+        const dueDate = new Date(t.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+        
+        if (dueDate < today) {
+          overdue++
+        } else {
+          active++
+        }
+      }
+    })
+    
+    return {
+      total: transactions.length,
+      active,
+      overdue,
+      returned
+    }
+  }, [transactions])
 
   // New transaction form with embedded student details
   const [formData, setFormData] = useState({
@@ -113,8 +154,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
       setIsLoading(true)
       await Promise.all([
         loadTransactions(),
-        loadAvailableBooks(),
-        loadStats()
+        loadAvailableBooks()
       ])
     } catch (error: any) {
       toast.error(error.message || 'Failed to load data')
@@ -145,21 +185,23 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
     }
   }
 
-  const loadStats = async () => {
-    try {
-      const response = await transactionService.getStats()
-      if (response.success) {
-        setStats({
-          total: response.data.total_transactions || 0,
-          active: response.data.active_count || 0,
-          overdue: response.data.overdue_count || 0,
-          returned: response.data.returned_count || 0
-        })
-      }
-    } catch (error: any) {
-      console.error('Failed to load stats:', error)
-    }
-  }
+  // Get unique categories and authors for filters
+  const categories = ['all', ...Array.from(new Set(availableBooks.map(book => book.category).filter(Boolean)))]
+  const authors = ['all', ...Array.from(new Set(availableBooks.map(book => book.author).filter(Boolean)))]
+
+  // Filter books based on search and filters
+  const filteredBooks = availableBooks.filter(book => {
+    const matchesSearch = 
+      book.title.toLowerCase().includes(bookSearchQuery.toLowerCase()) ||
+      book.author.toLowerCase().includes(bookSearchQuery.toLowerCase()) ||
+      book.isbn.toLowerCase().includes(bookSearchQuery.toLowerCase())
+    
+    const matchesCategory = selectedCategory === 'all' || book.category === selectedCategory
+    const matchesAuthor = selectedAuthor === 'all' || book.author === selectedAuthor
+    const matchesAvailability = !showOnlyAvailable || book.available_quantity > 0
+
+    return matchesSearch && matchesCategory && matchesAuthor && matchesAvailability
+  })
 
   // Handle borrow book with embedded student data
   const handleBorrowBook = async (e: React.FormEvent) => {
@@ -209,23 +251,80 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
       const response = await transactionService.returnBook(transactionId, user?.user_id)
       if (response.success) {
         toast.success('Book returned successfully!')
+        setRecentlyReturned(transactionId)
         await loadData()
+        
+        // Auto-hide undo button after 10 seconds
+        setTimeout(() => {
+          setRecentlyReturned(null)
+        }, 10000)
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to return book')
     }
   }
 
-  // Handle extend due date
-  const handleExtendDueDate = async (transactionId: number) => {
+  // Handle undo return
+  const handleUndoReturn = async (transactionId: number) => {
     try {
-      const response = await transactionService.extendDueDate(transactionId, 14, user?.user_id)
+      const response = await transactionService.undoReturn(transactionId, user?.user_id)
       if (response.success) {
-        toast.success('Due date extended by 14 days!')
+        toast.success('Return undone successfully!')
+        setRecentlyReturned(null)
+        await loadData()
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to undo return')
+    }
+  }
+
+  // Open extend due date modal
+  const openExtendModal = (transaction: Transaction) => {
+    setExtendingTransaction(transaction)
+    // Set default to current due date + 7 days
+    const currentDue = new Date(transaction.due_date)
+    const suggestedDate = new Date(currentDue)
+    suggestedDate.setDate(suggestedDate.getDate() + 7)
+    setNewDueDate(suggestedDate.toISOString().split('T')[0])
+  }
+
+  // Handle extend due date with custom date
+  const handleExtendDueDate = async () => {
+    if (!extendingTransaction || !newDueDate) return
+
+    try {
+      setIsSaving(true)
+
+      // Validate new date is after current due date
+      const currentDue = new Date(extendingTransaction.due_date)
+      const selectedDate = new Date(newDueDate)
+
+      if (selectedDate <= currentDue) {
+        toast.error('New due date must be after the current due date')
+        setIsSaving(false)
+        return
+      }
+
+      // Calculate days difference
+      const diffTime = selectedDate.getTime() - currentDue.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+      const response = await transactionService.extendDueDate(
+        extendingTransaction.transaction_id, 
+        diffDays, 
+        user?.user_id
+      )
+
+      if (response.success) {
+        toast.success(`Due date extended to ${formatDate(newDueDate)}!`)
+        setExtendingTransaction(null)
+        setNewDueDate('')
         await loadTransactions()
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to extend due date')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -236,7 +335,6 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
       if (response.success) {
         toast.success(`Updated ${response.count} transactions to overdue`)
         await loadTransactions()
-        await loadStats()
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to update overdue status')
@@ -257,20 +355,37 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
       contact_number: '',
       email: ''
     })
+    setBookSearchQuery('')
+    setSelectedCategory('all')
+    setSelectedAuthor('all')
+    setShowOnlyAvailable(true)
   }
 
-  // Filter transactions
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = 
-      transaction.book_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.student_id_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.transaction_id.toString().includes(searchQuery)
+  // Filter transactions with real-time overdue detection
+  const filteredTransactions = React.useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
     
-    const matchesFilter = filterStatus === 'all' || transaction.status === filterStatus
+    return transactions.filter(transaction => {
+      const matchesSearch = 
+        transaction.book_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        transaction.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        transaction.student_id_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        transaction.transaction_id.toString().includes(searchQuery)
+      
+      // Determine real-time status
+      let actualStatus = transaction.status
+      if (transaction.status !== 'returned') {
+        const dueDate = new Date(transaction.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+        actualStatus = dueDate < today ? 'overdue' : 'active'
+      }
+      
+      const matchesFilter = filterStatus === 'all' || actualStatus === filterStatus
 
-    return matchesSearch && matchesFilter
-  })
+      return matchesSearch && matchesFilter
+    })
+  }, [transactions, searchQuery, filterStatus])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -307,19 +422,45 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     
     if (diffDays < 0) {
-      return `${Math.abs(diffDays)} days overdue`
+      return `${Math.abs(diffDays)} day(s) overdue`
     } else if (diffDays === 0) {
       return "Due today"
     } else if (diffDays <= 3) {
-      return `${diffDays} days left`
+      return `${diffDays} day(s) left`
     } else {
-      return `${diffDays} days`
+      return `${diffDays} day(s)`
     }
   }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  }
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+
+  // Helper function to get real-time status
+  const getRealTimeStatus = (transaction: Transaction): 'active' | 'overdue' | 'returned' => {
+    if (transaction.status === 'returned') {
+      return 'returned'
+    }
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dueDate = new Date(transaction.due_date)
+    dueDate.setHours(0, 0, 0, 0)
+    
+    return dueDate < today ? 'overdue' : 'active'
   }
 
   return (
@@ -527,8 +668,14 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.transaction_id}>
+                  {filteredTransactions.map((transaction) => {
+                    const realTimeStatus = getRealTimeStatus(transaction)
+                    
+                    return (
+                    <TableRow 
+                      key={transaction.transaction_id}
+                      className={realTimeStatus === 'overdue' ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30' : ''}
+                    >
                       <TableCell className="font-medium">
                         #{transaction.transaction_id}
                       </TableCell>
@@ -574,7 +721,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                       </TableCell>
                       
                       <TableCell>
-                        {getStatusBadge(transaction.status)}
+                        {getStatusBadge(realTimeStatus)}
                       </TableCell>
                       
                       <TableCell className="text-right">
@@ -593,7 +740,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleExtendDueDate(transaction.transaction_id)}
+                                onClick={() => openExtendModal(transaction)}
                                 className="h-8 w-8 p-0"
                                 title="Extend due date"
                               >
@@ -610,16 +757,132 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                               </Button>
                             </>
                           )}
+                          
+                          {transaction.status === 'returned' && recentlyReturned === transaction.transaction_id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUndoReturn(transaction.transaction_id)}
+                              className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700"
+                              title="Undo return"
+                            >
+                              <Undo2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )
+                  })}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Extend Due Date Modal */}
+      <Dialog open={!!extendingTransaction} onOpenChange={(open) => !open && setExtendingTransaction(null)}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-[#9770FF]" />
+              Extend Due Date
+            </DialogTitle>
+            <DialogDescription>
+              Choose a new due date for this transaction
+            </DialogDescription>
+          </DialogHeader>
+
+          {extendingTransaction && (
+            <div className="space-y-4 py-4">
+              {/* Transaction Info */}
+              <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                <p className="text-sm font-medium">{extendingTransaction.book_title}</p>
+                <p className="text-xs text-muted-foreground">
+                  Borrowed by: {extendingTransaction.student_name}
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t mt-2">
+                  <span className="text-xs text-muted-foreground">Current Due Date:</span>
+                  <span className="text-sm font-medium">{formatDate(extendingTransaction.due_date)}</span>
+                </div>
+              </div>
+
+              {/* New Due Date Picker */}
+              <div className="space-y-2">
+                <Label htmlFor="new-due-date">New Due Date *</Label>
+                <Input
+                  id="new-due-date"
+                  type="date"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                  min={new Date(new Date(extendingTransaction.due_date).getTime() + 86400000).toISOString().split('T')[0]}
+                  disabled={isSaving}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Select a date after {formatDate(extendingTransaction.due_date)}
+                </p>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Quick extend:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[7, 14, 30].map((days) => {
+                    const quickDate = new Date(extendingTransaction.due_date)
+                    quickDate.setDate(quickDate.getDate() + days)
+                    return (
+                      <Button
+                        key={days}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setNewDueDate(quickDate.toISOString().split('T')[0])}
+                        disabled={isSaving}
+                        className="text-xs"
+                      >
+                        +{days} days
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setExtendingTransaction(null)
+                setNewDueDate('')
+              }}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExtendDueDate}
+              disabled={isSaving || !newDueDate}
+              className="gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Calendar className="h-4 w-4" />
+                  Extend Due Date
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Transaction Details Modal */}
       <Dialog open={!!viewingTransaction} onOpenChange={(open) => !open && setViewingTransaction(null)}>
@@ -741,6 +1004,15 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                     <p className="text-muted-foreground">Status</p>
                     <div className="mt-1">{getStatusBadge(viewingTransaction.status)}</div>
                   </div>
+                  {viewingTransaction.created_at && (
+                    <div className="col-span-2">
+                      <p className="text-muted-foreground">Transaction Created</p>
+                      <p className="font-medium flex items-center gap-2">
+                        <Clock className="h-3 w-3" />
+                        {formatDateTime(viewingTransaction.created_at)}
+                      </p>
+                    </div>
+                  )}
                   {viewingTransaction.status !== 'returned' && (
                     <div className="col-span-2">
                       <p className="text-muted-foreground">Time Remaining</p>
@@ -776,7 +1048,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    handleExtendDueDate(viewingTransaction!.transaction_id)
+                    openExtendModal(viewingTransaction!)
                     setViewingTransaction(null)
                   }}
                   className="gap-2"
@@ -807,9 +1079,9 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Borrow Book Modal - (Keep the same form as before) */}
+      {/* Borrow Book Modal with Advanced Filters */}
       <Dialog open={isBorrowModalOpen} onOpenChange={(open) => !open && !isSaving && setIsBorrowModalOpen(false)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">Borrow a Book</DialogTitle>
             <DialogDescription>
@@ -818,29 +1090,136 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
           </DialogHeader>
 
           <form onSubmit={handleBorrowBook} className="space-y-6 py-4">
-            {/* Book Selection */}
+            {/* Book Selection with Advanced Filters */}
             <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h3 className="font-semibold flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Book Information
+                Book Selection
               </h3>
               
+              {/* Book Search */}
               <div className="space-y-2">
-                <Label>Select Book *</Label>
-                <select
-                  value={formData.book_id}
-                  onChange={(e) => setFormData({ ...formData, book_id: e.target.value })}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                  required
-                  disabled={isSaving}
-                >
-                  <option value="">Choose a book...</option>
-                  {availableBooks.map((book) => (
-                    <option key={book.book_id} value={book.book_id}>
-                      {book.title} - {book.author} ({book.available_quantity} available)
-                    </option>
-                  ))}
-                </select>
+                <Label>Search Books</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    value={bookSearchQuery}
+                    onChange={(e) => setBookSearchQuery(e.target.value)}
+                    placeholder="Search by title, author, or ISBN..."
+                    className="pl-10"
+                    disabled={isSaving}
+                  />
+                </div>
+              </div>
+
+              {/* Filters Row */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Category Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Category</Label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full h-9 px-3 text-sm rounded-md border border-input bg-background"
+                    disabled={isSaving}
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category === 'all' ? 'All Categories' : category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Author Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Author</Label>
+                  <select
+                    value={selectedAuthor}
+                    onChange={(e) => setSelectedAuthor(e.target.value)}
+                    className="w-full h-9 px-3 text-sm rounded-md border border-input bg-background"
+                    disabled={isSaving}
+                  >
+                    {authors.map((author) => (
+                      <option key={author} value={author}>
+                        {author === 'all' ? 'All Authors' : author}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Availability Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Availability</Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
+                    className={`w-full h-9 px-3 text-sm rounded-md border ${
+                      showOnlyAvailable 
+                        ? 'bg-green-100 dark:bg-green-950/30 border-green-500 text-green-700 dark:text-green-300' 
+                        : 'border-input bg-background'
+                    }`}
+                    disabled={isSaving}
+                  >
+                    {showOnlyAvailable ? '✓ Available Only' : 'Show All'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Book List Results */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Select Book *</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {filteredBooks.length} book{filteredBooks.length !== 1 ? 's' : ''} found
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto border rounded-md">
+                  {filteredBooks.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No books match your filters</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredBooks.map((book) => (
+                        <label
+                          key={book.book_id}
+                          className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors ${
+                            formData.book_id === book.book_id.toString() ? 'bg-blue-50 dark:bg-blue-950/30' : ''
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="book_selection"
+                            value={book.book_id}
+                            checked={formData.book_id === book.book_id.toString()}
+                            onChange={(e) => setFormData({ ...formData, book_id: e.target.value })}
+                            className="mt-1"
+                            disabled={isSaving}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{book.title}</p>
+                            <p className="text-xs text-muted-foreground">{book.author}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {book.category && (
+                                <Badge variant="outline" className="text-xs">
+                                  {book.category}
+                                </Badge>
+                              )}
+                              <span className={`text-xs ${
+                                book.available_quantity > 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {book.available_quantity} available
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
