@@ -96,7 +96,6 @@ export function AppSidebar({ currentPage, setCurrentPage }: {
 
       // Update profile
       const response = await authService.updateProfile(
-        userData.user_id,
         fullName.trim(),
         username.trim()
       );
@@ -154,7 +153,6 @@ export function AppSidebar({ currentPage, setCurrentPage }: {
 
       // Update password
       const response = await authService.updatePassword(
-        userData.user_id,
         currentPassword,
         newPassword
       );

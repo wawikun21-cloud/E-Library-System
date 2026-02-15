@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+// Uses relative path '/api' so Vite proxy forwards requests to backend
+// This works for both dev (https://192.168.1.4:5173) and preview (https://192.168.1.4:4173)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -286,6 +288,15 @@ export const bookService = {
       const response = await apiClient.get('/books/search', {
         params: { q: query }
       });
+      return response.data;
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  getByISBN: async (isbn: string) => {
+    try {
+      const response = await apiClient.get(`/books/isbn/${isbn}`);
       return response.data;
     } catch (error: any) {
       throw error;

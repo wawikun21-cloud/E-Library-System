@@ -30,13 +30,33 @@ const PORT = process.env.PORT || 5000;
 // ============================================
 
 // CORS Configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://localhost:5173',  // HTTPS dev
+  'http://localhost:4173',
+  'https://localhost:4173',  // HTTPS preview
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (Postman, curl, mobile apps)
+    if (!origin) return callback(null, true);
+
+    // Allow both http AND https for local network IPs
+    const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+
+    if (allowedOrigins.includes(origin) || isLocalNetwork) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin} is not allowed`));
+    }
+  },
   credentials: true
 }));
 
 // Body parsers
-app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging (development only)
@@ -70,24 +90,21 @@ app.use('/api/transactions', transactionRoutes);
 // ERROR HANDLING (Must be AFTER all routes)
 // ============================================
 
-// 404 Handler - catches undefined routes
 app.use(notFound);
-
-// Global error handler - catches all errors
 app.use(errorHandler);
 
 // ============================================
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🚀 Lexora Library Management System');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`📡 Server running on: http://localhost:${PORT}`);
+  console.log(`📱 Network access on: http://<your-ip>:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔐 JWT Secret: ${process.env.JWT_SECRET ? '✅ Loaded' : '❌ Missing'}`);
-  console.log(`📝 API Documentation: http://localhost:${PORT}/api/docs`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 });
 

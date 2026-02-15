@@ -23,11 +23,8 @@ import {
   Phone,
   MapPin,
   Hash,
-  GraduationCap,
   Eye,
   X,
-  Filter,
-  ChevronDown,
   Undo2
 } from "lucide-react"
 import { transactionService } from '@/services/api'
@@ -76,7 +73,7 @@ interface BorrowedPageProps {
   user?: UserData | null
 }
 
-export default function BorrowedPage({ user }: BorrowedPageProps) {
+export default function BorrowedPage({ user: _user }: BorrowedPageProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [availableBooks, setAvailableBooks] = useState<Book[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -230,7 +227,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
         notes: formData.notes || null
       }
 
-      const response = await transactionService.create(transactionData, user?.user_id)
+      const response = await transactionService.create(transactionData)
 
       if (response.success) {
         toast.success('Book borrowed successfully!')
@@ -248,7 +245,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
   // Handle return book
   const handleReturnBook = async (transactionId: number) => {
     try {
-      const response = await transactionService.returnBook(transactionId, user?.user_id)
+      const response = await transactionService.returnBook(transactionId)
       if (response.success) {
         toast.success('Book returned successfully!')
         setRecentlyReturned(transactionId)
@@ -267,7 +264,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
   // Handle undo return
   const handleUndoReturn = async (transactionId: number) => {
     try {
-      const response = await transactionService.undoReturn(transactionId, user?.user_id)
+      const response = await transactionService.undoReturn(transactionId)
       if (response.success) {
         toast.success('Return undone successfully!')
         setRecentlyReturned(null)
@@ -311,8 +308,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
 
       const response = await transactionService.extendDueDate(
         extendingTransaction.transaction_id, 
-        diffDays, 
-        user?.user_id
+        diffDays
       )
 
       if (response.success) {

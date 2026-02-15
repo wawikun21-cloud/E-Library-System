@@ -55,7 +55,7 @@ interface Appointment {
   status: 'pending' | 'confirmed' | 'completed'
 }
 
-export default function HomePage({ user }: HomePageProps) {
+export default function HomePage({ user: _user }: HomePageProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [formData, setFormData] = useState({
     title: '',

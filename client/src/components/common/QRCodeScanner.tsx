@@ -10,10 +10,11 @@ interface QRCodeScannerProps {
 
 export default function QRCodeScanner({ onScan, onClose }: QRCodeScannerProps) {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
+  const hasScanned = useRef(false) // Prevents multiple scans from firing
   const scannerDivId = 'qr-reader'
 
   useEffect(() => {
-    // Initialize scanner
+    // Initialize scanner only once
     if (!scannerRef.current) {
       scannerRef.current = new Html5QrcodeScanner(
         scannerDivId,
@@ -27,17 +28,19 @@ export default function QRCodeScanner({ onScan, onClose }: QRCodeScannerProps) {
 
       scannerRef.current.render(
         (decodedText) => {
-          // Success callback - extract ISBN from QR code
+          // Block if already scanned - prevents looping on same barcode
+          if (hasScanned.current) return
+          hasScanned.current = true
+
+          // Stop scanner immediately after successful scan
+          scannerRef.current?.clear().catch(() => {})
+
+          // Extract ISBN from QR code
           const isbn = extractISBN(decodedText)
-          if (isbn) {
-            onScan(isbn)
-          } else {
-            onScan(decodedText) // Send raw text if no ISBN pattern found
-          }
+          onScan(isbn || decodedText)
         },
-        (error) => {
-          // Error callback - can be ignored for most cases
-          console.debug('QR scan error:', error)
+        (_error) => {
+          // Suppress scan errors - normal during scanning
         }
       )
     }
@@ -51,7 +54,7 @@ export default function QRCodeScanner({ onScan, onClose }: QRCodeScannerProps) {
         scannerRef.current = null
       }
     }
-  }, [onScan])
+  }, []) // Empty deps - only run once on mount
 
   /**
    * Extract ISBN from scanned QR code text
@@ -71,12 +74,13 @@ export default function QRCodeScanner({ onScan, onClose }: QRCodeScannerProps) {
       return cleaned
     }
     
-    // Try to find ISBN pattern in the text
+    // Try to find ISBN-13 pattern in the text
     const isbn13Match = text.match(/(?:ISBN[-\s]?(?:13)?:?\s?)?(\d{3}[-\s]?\d{1,5}[-\s]?\d{1,7}[-\s]?\d{1,7}[-\s]?\d{1})/)
     if (isbn13Match) {
       return isbn13Match[1].replace(/[-\s]/g, '')
     }
     
+    // Try to find ISBN-10 pattern in the text
     const isbn10Match = text.match(/(?:ISBN[-\s]?(?:10)?:?\s?)?(\d{1,5}[-\s]?\d{1,7}[-\s]?\d{1,7}[-\s]?[0-9X])/)
     if (isbn10Match) {
       return isbn10Match[1].replace(/[-\s]/g, '')

@@ -68,7 +68,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         <CardHeader className="space-y-4 text-center">
           {/* Logo */}
           <div className="flex justify-center">
-           <img className='w-30 m-0 p-0' src="./public/lexora-logo.svg" alt="Lexora Logo" />
+           <img className='w-30 m-0 p-0' src="/Lexora-logo.svg" alt="Lexora Logo" />
           </div>
           
           <div>

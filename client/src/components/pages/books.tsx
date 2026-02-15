@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Plus, Pencil, Trash2, BookOpen, Upload, X, Loader2, Filter, Eye, Calendar, MapPin, Building2, Hash, CheckCircle2, Copy, FolderOpen } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, BookOpen, Upload, X, Loader2, Filter, Eye, Calendar, MapPin, Building2, Hash, CheckCircle2, Copy, FolderOpen, ScanLine, ChevronDown } from 'lucide-react'
 import { toast } from 'react-toastify'
 import {
   Dialog,
@@ -31,6 +31,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { bookService } from '@/services/api'
+import QRCodeScanner from '@/components/common/QRCodeScanner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface UserData {
   user_id: number;
@@ -60,7 +67,7 @@ interface Book {
   location?: string
 }
 
-export default function BooksPage({ user }: BooksPageProps) {
+export default function BooksPage({ user: _user }: BooksPageProps) {
   const [books, setBooks] = useState<Book[]>([])
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
@@ -69,6 +76,10 @@ export default function BooksPage({ user }: BooksPageProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  
+  // QR Scanner states
+  const [showScanner, setShowScanner] = useState(false)
+  const [isFetchingISBN, setIsFetchingISBN] = useState(false)
   
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -158,6 +169,61 @@ export default function BooksPage({ user }: BooksPageProps) {
     setPreviewImage('')
   }
 
+  /**
+   * Handle QR code scan - fetch book data from ISBN
+   */
+  const handleISBNScan = async (isbn: string) => {
+    console.log('Scanned ISBN:', isbn)
+    setShowScanner(false)
+    setIsFetchingISBN(true)
+    setIsFormOpen(true) // Open form after scan
+
+    try {
+      const response = await bookService.getByISBN(isbn)
+      
+      if (response.success && response.data) {
+        const bookData = response.data
+        
+        // Auto-fill form with fetched data
+        setFormData({
+          ...formData,
+          title: bookData.title || '',
+          author: bookData.authors || '',
+          isbn: isbn,
+          publisher: bookData.publisher || '',
+          published_year: bookData.publishedDate ? bookData.publishedDate.substring(0, 4) : '',
+          description: bookData.description || '',
+          cover_image: bookData.thumbnail || '',
+        })
+        
+        // Set preview image if available
+        if (bookData.thumbnail) {
+          setPreviewImage(bookData.thumbnail)
+        }
+        
+        toast.success('Book information loaded successfully!')
+      } else {
+        // No book found - just set ISBN
+        setFormData({ ...formData, isbn })
+        toast.warning('Book not found. Please fill in the details manually.')
+      }
+    } catch (error: any) {
+      console.error('ISBN fetch error:', error)
+      // On error, just set the ISBN and let user fill manually
+      setFormData({ ...formData, isbn })
+      toast.error(error.message || 'Failed to fetch book details. Please fill manually.')
+    } finally {
+      setIsFetchingISBN(false)
+    }
+  }
+
+  /**
+   * Open scanner when adding new book - shows only scanner
+   */
+  const handleScanISBN = () => {
+    setShowScanner(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSaving(true)
@@ -178,14 +244,14 @@ export default function BooksPage({ user }: BooksPageProps) {
       
       if (editingBook) {
         // Update existing book
-        const response = await bookService.update(editingBook.book_id, bookData, user?.user_id)
+        const response = await bookService.update(editingBook.book_id, bookData)
         if (response.success) {
           toast.success('Book updated successfully!')
           await loadBooks() // Reload books to get fresh data
         }
       } else {
         // Create new book
-        const response = await bookService.create(bookData, user?.user_id)
+        const response = await bookService.create(bookData)
         if (response.success) {
           toast.success('Book added successfully!')
           await loadBooks() // Reload books to get fresh data
@@ -222,7 +288,7 @@ export default function BooksPage({ user }: BooksPageProps) {
     if (!deleteBook) return
 
     try {
-      const response = await bookService.delete(deleteBook.book_id, user?.user_id)
+      const response = await bookService.delete(deleteBook.book_id)
       if (response.success) {
         toast.success('Book deleted successfully!')
         await loadBooks() // Reload books
@@ -463,13 +529,39 @@ export default function BooksPage({ user }: BooksPageProps) {
           <h1 className="text-3xl font-bold tracking-tight">Borrowed Books</h1>
           <p className="text-muted-foreground mt-1">Manage your book collection - {books.length} {books.length === 1 ? 'book' : 'books'} in total</p>
         </div>
-          <Button 
-            onClick={() => setIsFormOpen(true)} 
-            className="text-[#ffffff] gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg hover:shadow-xl transition-all h-9 px-6 text-base font-semibold"
-          >
-            <Plus className="h-4 w-4" />
-            Add New Book
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                className="text-[#ffffff] gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg hover:shadow-xl transition-all h-9 px-6 text-base font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+                Add New Book
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem 
+                onClick={handleScanISBN}
+                className="cursor-pointer gap-2 py-3"
+              >
+                <ScanLine className="h-4 w-4 text-[#9770FF]" />
+                <div className="flex flex-col">
+                  <span className="font-semibold">Scan ISBN</span>
+                  <span className="text-xs text-muted-foreground">Auto-fill from barcode</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setIsFormOpen(true)}
+                className="cursor-pointer gap-2 py-3"
+              >
+                <Pencil className="h-4 w-4 text-[#9770FF]" />
+                <div className="flex flex-col">
+                  <span className="font-semibold">Add Manually</span>
+                  <span className="text-xs text-muted-foreground">Enter details yourself</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Stats Cards with 3D Tilt Effects */}
@@ -755,16 +847,16 @@ export default function BooksPage({ user }: BooksPageProps) {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filteredBooks.map((book, index) => (
+          <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {filteredBooks.map((book) => (
               <Card key={book.book_id} className="book-card animate-fade-in hover:shadow-xl transition-all overflow-hidden border-2 hover:border-[#9770FF]/30">
                 {/* Book Cover Image with Hover Zoom and Overlay */}
                 {book.cover_image ? (
-                  <div className="aspect-[3/4] w-full overflow-hidden bg-muted book-cover-container cursor-pointer" onClick={() => setViewingBook(book)}>
+                  <div className="aspect-[3/4] w-full overflow-hidden bg-white book-cover-container cursor-pointer relative" onClick={() => setViewingBook(book)}>
                     <img 
                       src={book.cover_image} 
                       alt={book.title}
-                      className="w-full h-full object-cover book-cover-image"
+                      className="w-full h-full object-contain p-1 book-cover-image"
                     />
                     <div className="book-overlay">
                       <Button size="sm" variant="secondary" className="text-[#000000] gap-2 bg-white/90 hover:bg-white">
@@ -785,52 +877,52 @@ export default function BooksPage({ user }: BooksPageProps) {
                   </div>
                 )}
                 
-                <CardHeader className="p-3 pb-2">
-                  <div className="space-y-2">
-                    <CardTitle className="text-sm line-clamp-2 leading-tight font-semibold hover:text-[#9770FF] transition-colors cursor-pointer" onClick={() => setViewingBook(book)}>
+                <CardHeader className="p-2.5 pb-1.5">
+                  <div className="space-y-1.5">
+                    <CardTitle className="text-xs line-clamp-2 leading-tight font-semibold hover:text-[#9770FF] transition-colors cursor-pointer" onClick={() => setViewingBook(book)}>
                       {book.title}
                     </CardTitle>
-                    <CardDescription className="text-xs line-clamp-1 font-medium">
+                    <CardDescription className="text-[10px] line-clamp-1 font-medium">
                       {book.author}
                     </CardDescription>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       <Badge 
                         variant={book.available_quantity > 5 ? "default" : book.available_quantity > 0 ? "secondary" : "destructive"}
-                        className="text-[10px] px-2 py-0.5 font-semibold"
+                        className="text-[9px] px-1.5 py-0 font-semibold"
                       >
-                        {book.available_quantity} available
+                        {book.available_quantity} avail
                       </Badge>
                       {book.category && (
-                        <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-medium border-[#9770FF]/30 text-[#9770FF]">
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-medium border-[#9770FF]/30 text-[#9770FF]">
                           {book.category}
                         </Badge>
                       )}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="space-y-2">
-                    <div className="text-[11px] text-muted-foreground truncate font-medium">
+                <CardContent className="p-2.5 pt-0">
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] text-muted-foreground truncate font-medium">
                       ISBN: {book.isbn}
                     </div>
                     
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 gap-1 h-7 text-[11px] hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors font-medium"
+                        className="flex-1 gap-1 h-6 text-[10px] hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors font-medium"
                         onClick={() => handleEdit(book)}
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="h-2.5 w-2.5" />
                         Edit
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 gap-1 h-7 text-[11px] text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
+                        className="flex-1 gap-1 h-6 text-[10px] text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
                         onClick={() => setDeleteBook(book)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-2.5 w-2.5" />
                         Delete
                       </Button>
                     </div>
@@ -1025,7 +1117,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   placeholder="Enter book title"
                   className="h-10 border-2 focus:border-[#9770FF]"
                   required
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 />
               </div>
 
@@ -1038,7 +1130,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   placeholder="Enter author name"
                   className="h-10 border-2 focus:border-[#9770FF]"
                   required
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 />
               </div>
 
@@ -1052,7 +1144,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                     placeholder="ISBN number"
                     className="h-10 border-2 focus:border-[#9770FF]"
                     required
-                    disabled={isSaving}
+                    disabled={isSaving || isFetchingISBN}
                   />
                 </div>
 
@@ -1066,7 +1158,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
                     className="h-10 border-2 focus:border-[#9770FF]"
                     required
-                    disabled={isSaving}
+                    disabled={isSaving || isFetchingISBN}
                   />
                 </div>
               </div>
@@ -1079,7 +1171,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   placeholder="e.g., Fiction, Science, History"
                   className="h-10 border-2 focus:border-[#9770FF]"
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 />
               </div>
 
@@ -1092,7 +1184,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                     onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
                     placeholder="Publisher name"
                     className="h-10 border-2 focus:border-[#9770FF]"
-                    disabled={isSaving}
+                    disabled={isSaving || isFetchingISBN}
                   />
                 </div>
 
@@ -1107,7 +1199,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                     onChange={(e) => setFormData({ ...formData, published_year: e.target.value })}
                     placeholder="YYYY"
                     className="h-10 border-2 focus:border-[#9770FF]"
-                    disabled={isSaving}
+                    disabled={isSaving || isFetchingISBN}
                   />
                 </div>
               </div>
@@ -1120,7 +1212,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   placeholder="e.g., Shelf A3, Room 101"
                   className="h-10 border-2 focus:border-[#9770FF]"
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 />
               </div>
 
@@ -1132,7 +1224,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Brief description of the book..."
                   className="w-full min-h-[80px] p-3 text-sm border-2 rounded-md focus:border-[#9770FF] focus:outline-none transition-colors auto-resize bg-transparent"
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                   rows={3}
                 />
               </div>
@@ -1143,7 +1235,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                   variant="outline" 
                   onClick={resetForm}
                   className="gap-2 h-10 border-2"
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 >
                   <X className="h-4 w-4" />
                   Cancel
@@ -1151,7 +1243,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                 <Button 
                   type="submit"
                   className="text-[#fffff] gap-2 h-10 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg"
-                  disabled={isSaving}
+                  disabled={isSaving || isFetchingISBN}
                 >
                   {isSaving ? (
                     <>
@@ -1169,6 +1261,14 @@ export default function BooksPage({ user }: BooksPageProps) {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* QR Scanner Modal */}
+        {showScanner && (
+          <QRCodeScanner
+            onScan={handleISBNScan}
+            onClose={() => setShowScanner(false)}
+          />
+        )}
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!deleteBook} onOpenChange={(open) => !open && setDeleteBook(null)}>
