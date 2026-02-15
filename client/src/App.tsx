@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ToastContainer } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Layout from './components/layout/layout';
 import HomePage from './components/pages/dashboard';
 import BooksPage from './components/pages/books';
 import BorrowedPage from './components/pages/borrowed';
 import LoginPage from './components/pages/login';
+import { authService } from './services/api';
 import './index.css'
 
 // Define user type
@@ -47,42 +49,91 @@ function App() {
 
   // Check authentication status on app load
   useEffect(() => {
-    const checkAuth = () => {
-      const savedAuth = localStorage.getItem('isAuthenticated')
-      const savedUser = localStorage.getItem('user')
-      
-      if (savedAuth === 'true' && savedUser) {
-        setIsAuthenticated(true)
-        setUser(JSON.parse(savedUser))
+    const checkAuth = async () => {
+      // Check if token exists
+      if (!authService.isAuthenticated()) {
+        setIsAuthenticated(false)
+        setUser(null)
+        setIsLoading(false)
+        return
       }
-      setIsLoading(false)
+
+      try {
+        // Verify token with backend
+        const response = await authService.verifySession()
+        
+        if (response.success && response.user) {
+          setIsAuthenticated(true)
+          setUser(response.user)
+        } else {
+          // Token invalid
+          setIsAuthenticated(false)
+          setUser(null)
+          // Clear invalid token
+          await authService.logout()
+        }
+      } catch (error) {
+        console.error('Session verification failed:', error)
+        setIsAuthenticated(false)
+        setUser(null)
+        // Clear invalid token
+        await authService.logout()
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     checkAuth()
-  }, []) // Run only once on mount
+  }, [])
+
+  // Listen for auth:logout event from API interceptor
+  useEffect(() => {
+    const handleAuthLogout = (event: CustomEvent) => {
+      const reason = event.detail?.reason
+      
+      // Show appropriate message
+      if (reason === 'TOKEN_EXPIRED') {
+        toast.warning('Your session has expired. Please login again.')
+      } else if (reason === 'INVALID_TOKEN') {
+        toast.error('Invalid session. Please login again.')
+      }
+      
+      // Trigger logout
+      handleLogout()
+    }
+
+    window.addEventListener('auth:logout', handleAuthLogout as EventListener)
+    
+    return () => {
+      window.removeEventListener('auth:logout', handleAuthLogout as EventListener)
+    }
+  }, [])
 
   // Handle successful login
   const handleLogin = (userData: User) => {
     setIsAuthenticated(true)
     setUser(userData)
-    // localStorage is already set in login component
+    // Token and localStorage already set in authService.login
   }
 
   // Handle logout
-  const handleLogout = () => {
-    // Clear authentication state
-    setIsAuthenticated(false)
-    setUser(null)
-    setCurrentPage('dashboard')
-    
-    // Clear localStorage
-    localStorage.removeItem('isAuthenticated')
-    localStorage.removeItem('user')
-    
-    // Force login component to remount with fresh state
-    setLoginKey(prev => prev + 1)
-    
-    console.log('User logged out successfully')
+  const handleLogout = async () => {
+    try {
+      // Call backend logout endpoint
+      await authService.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Clear authentication state
+      setIsAuthenticated(false)
+      setUser(null)
+      setCurrentPage('dashboard')
+      
+      // Force login component to remount with fresh state
+      setLoginKey(prev => prev + 1)
+      
+      console.log('User logged out successfully')
+    }
   }
 
   // Render different pages
@@ -105,7 +156,7 @@ function App() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Verifying session...</p>
         </div>
       </div>
     )

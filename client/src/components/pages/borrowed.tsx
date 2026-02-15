@@ -484,7 +484,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
           </Button>
           <Button 
             onClick={() => setIsBorrowModalOpen(true)} 
-            className="gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+            className="text-[#ffffff] gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
           >
             <Plus className="h-4 w-4" />
             Borrow Book
@@ -823,30 +823,6 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
                 <p className="text-xs text-muted-foreground">
                   Select a date after {formatDate(extendingTransaction.due_date)}
                 </p>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Quick extend:</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[7, 14, 30].map((days) => {
-                    const quickDate = new Date(extendingTransaction.due_date)
-                    quickDate.setDate(quickDate.getDate() + days)
-                    return (
-                      <Button
-                        key={days}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setNewDueDate(quickDate.toISOString().split('T')[0])}
-                        disabled={isSaving}
-                        className="text-xs"
-                      >
-                        +{days} days
-                      </Button>
-                    )
-                  })}
-                </div>
               </div>
             </div>
           )}
@@ -1376,7 +1352,7 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+                className="text-[#ffffff] bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -1415,13 +1391,13 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          background: #0033FF;
           border-radius: 10px;
           transition: background 0.3s ease;
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
+          background: #0033FF;
         }
 
         /* Firefox */
@@ -1442,13 +1418,13 @@ export default function BorrowedPage({ user }: BorrowedPageProps) {
         }
 
         ::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, #9770FF, #0033FF);
+          background: #0033FF;
           border-radius: 10px;
           transition: background 0.3s ease;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(to bottom, #7c5cd6, #0029cc);
+          background: #0033FF;
         }
 
         /* Firefox */

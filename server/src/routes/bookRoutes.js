@@ -1,26 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const BookController = require('../controllers/bookController');
+const { authenticate, requireAdmin, optionalAuth } = require('../middleware');
 
-// GET /api/books - Get all books
-router.get('/', BookController.getAllBooks);
-
-// GET /api/books/stats - Get book statistics
-router.get('/stats', BookController.getStats);
-
-// GET /api/books/search?q=query - Search books
-router.get('/search', BookController.searchBooks);
-
-// GET /api/books/:id - Get single book
-router.get('/:id', BookController.getBook);
-
-// POST /api/books - Create new book
-router.post('/', BookController.createBook);
-
-// PUT /api/books/:id - Update book
-router.put('/:id', BookController.updateBook);
-
-// DELETE /api/books/:id - Delete book
-router.delete('/:id', BookController.deleteBook);
+router.get('/', optionalAuth, BookController.getAllBooks);
+router.get('/search', optionalAuth, BookController.searchBooks);
+router.get('/:id', optionalAuth, BookController.getBook);
+router.get('/stats', authenticate, BookController.getStats);
+router.post('/', authenticate, requireAdmin, BookController.createBook);
+router.put('/:id', authenticate, requireAdmin, BookController.updateBook);
+router.delete('/:id', authenticate, requireAdmin, BookController.deleteBook);
 
 module.exports = router;

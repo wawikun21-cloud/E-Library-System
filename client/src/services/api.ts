@@ -12,93 +12,263 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Auth Service
+// ============================================
+// TOKEN MANAGEMENT
+// ============================================
+
+/**
+ * Get JWT token from localStorage
+ */
+const getToken = (): string | null => {
+  return localStorage.getItem('auth_token');
+};
+
+/**
+ * Set JWT token in localStorage
+ */
+const setToken = (token: string): void => {
+  localStorage.setItem('auth_token', token);
+};
+
+/**
+ * Remove JWT token from localStorage
+ */
+const removeToken = (): void => {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('isAuthenticated');
+};
+
+/**
+ * Save user data to localStorage
+ */
+const saveUserData = (user: any): void => {
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('isAuthenticated', 'true');
+};
+
+/**
+ * Get user data from localStorage
+ */
+const getUserData = (): any => {
+  const data = localStorage.getItem('user');
+  return data ? JSON.parse(data) : null;
+};
+
+// ============================================
+// REQUEST INTERCEPTOR - Add token to requests
+// ============================================
+
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// ============================================
+// RESPONSE INTERCEPTOR - Handle token errors
+// ============================================
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      const { status, data } = error.response;
+      
+      // Token expired or invalid
+      if (status === 401 && (data.code === 'TOKEN_EXPIRED' || data.code === 'INVALID_TOKEN' || data.code === 'NO_TOKEN')) {
+        // Clear token and trigger logout
+        removeToken();
+        
+        // Dispatch custom event to trigger logout in App component
+        window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: data.code } }));
+        
+        throw new Error(data.message || 'Session expired. Please login again.');
+      }
+      
+      // Forbidden - insufficient permissions
+      if (status === 403) {
+        throw new Error(data.message || 'Access denied. Insufficient permissions.');
+      }
+      
+      // Handle other errors
+      throw new Error(data.message || 'An error occurred');
+    } else if (error.request) {
+      throw new Error('Cannot connect to server. Please check if the server is running.');
+    } else {
+      throw new Error('An unexpected error occurred');
+    }
+  }
+);
+
+// ============================================
+// AUTH SERVICE - UPDATED WITH JWT
+// ============================================
+
 export const authService = {
+  /**
+   * Login user and store token
+   */
   login: async (username: string, password: string) => {
     try {
       const response = await apiClient.post('/auth/login', { username, password });
+      
+      if (response.data.success && response.data.token) {
+        // Store token and user data
+        setToken(response.data.token);
+        saveUserData(response.data.user);
+      }
+      
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Login failed');
-      } else if (error.request) {
-        throw new Error('Cannot connect to server. Please check if the server is running.');
-      } else {
-        throw new Error('An unexpected error occurred');
-      }
+      throw error;
     }
   },
 
-  logout: async (userId: number) => {
+  /**
+   * Logout user and clear token
+   */
+  logout: async () => {
     try {
-      const response = await apiClient.post('/auth/logout', { userId });
-      return response.data;
-    } catch (error: any) {
+      // Call backend logout endpoint (requires auth token)
+      await apiClient.post('/auth/logout');
+    } catch (error) {
       console.error('Logout error:', error);
-      return { success: true, message: 'Logged out locally' };
+    } finally {
+      // Always clear token locally, even if request fails
+      removeToken();
     }
   },
 
-  verifySession: async (userId: number) => {
+  /**
+   * Verify if current token is valid
+   */
+  verifySession: async () => {
     try {
-      const response = await apiClient.post('/auth/verify', { userId });
+      const response = await apiClient.post('/auth/verify');
+      
+      if (response.data.success && response.data.user) {
+        // Update user data
+        saveUserData(response.data.user);
+      }
+      
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Session verification failed');
-      } else {
-        throw new Error('Cannot verify session');
-      }
+      throw error;
     }
   },
 
-  updateProfile: async (userId: number, fullName: string, username: string) => {
+  /**
+   * Get current logged-in user
+   */
+  getCurrentUser: async () => {
+    try {
+      const response = await apiClient.get('/auth/me');
+      
+      if (response.data.success) {
+        saveUserData(response.data.user);
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  /**
+   * Update user profile
+   */
+  updateProfile: async (fullName: string, username: string) => {
     try {
       const response = await apiClient.put('/auth/profile', {
-        userId,
         fullName,
         username,
       });
+      
+      if (response.data.success) {
+        saveUserData(response.data.user);
+      }
+      
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to update profile');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
-  updatePassword: async (userId: number, currentPassword: string, newPassword: string) => {
+  /**
+   * Update password
+   */
+  updatePassword: async (currentPassword: string, newPassword: string) => {
     try {
       const response = await apiClient.put('/auth/password', {
-        userId,
         currentPassword,
         newPassword,
       });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to update password');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
+  },
+
+  /**
+   * Refresh token
+   */
+  refreshToken: async () => {
+    try {
+      const response = await apiClient.post('/auth/refresh');
+      
+      if (response.data.success && response.data.token) {
+        setToken(response.data.token);
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  /**
+   * Check if user is authenticated
+   */
+  isAuthenticated: (): boolean => {
+    return !!getToken();
+  },
+
+  /**
+   * Get stored user data
+   */
+  getUser: () => {
+    return getUserData();
+  },
+
+  /**
+   * Get stored token
+   */
+  getToken: () => {
+    return getToken();
   },
 };
 
-// Book Service
+// ============================================
+// BOOK SERVICE - No changes needed (uses interceptor)
+// ============================================
+
 export const bookService = {
   getAll: async () => {
     try {
       const response = await apiClient.get('/books');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch books');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -107,11 +277,7 @@ export const bookService = {
       const response = await apiClient.get(`/books/${id}`);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch book');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -122,58 +288,37 @@ export const bookService = {
       });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Search failed');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
-  create: async (bookData: any, userId?: number) => {
+  create: async (bookData: any) => {
     try {
-      const response = await apiClient.post('/books', {
-        ...bookData,
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.post('/books', bookData);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to create book');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
-  update: async (id: number, bookData: any, userId?: number) => {
+  update: async (id: number, bookData: any) => {
     try {
-      const response = await apiClient.put(`/books/${id}`, {
-        ...bookData,
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.put(`/books/${id}`, bookData);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to update book');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
-  delete: async (id: number, userId?: number) => {
+  delete: async (id: number) => {
     try {
-      const response = await apiClient.delete(`/books/${id}`, {
-        data: { userId }
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.delete(`/books/${id}`);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to delete book');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -182,16 +327,15 @@ export const bookService = {
       const response = await apiClient.get('/books/stats');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch statistics');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 };
 
-// Transaction Service
+// ============================================
+// TRANSACTION SERVICE - Updated (no userId params)
+// ============================================
+
 export const transactionService = {
   // Get all transactions
   getAll: async () => {
@@ -199,11 +343,7 @@ export const transactionService = {
       const response = await apiClient.get('/transactions');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch transactions');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -213,77 +353,51 @@ export const transactionService = {
       const response = await apiClient.get(`/transactions/${id}`);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch transaction');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
   // Create new transaction (borrow book)
-  create: async (transactionData: any, userId?: number) => {
+  create: async (transactionData: any) => {
     try {
-      const response = await apiClient.post('/transactions', {
-        ...transactionData,
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.post('/transactions', transactionData);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to create transaction');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
   // Return book
-  returnBook: async (id: number, userId?: number) => {
+  returnBook: async (id: number) => {
     try {
-      const response = await apiClient.put(`/transactions/${id}/return`, {
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.put(`/transactions/${id}/return`);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to return book');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
   // Undo return book
-  undoReturn: async (id: number, userId?: number) => {
+  undoReturn: async (id: number) => {
     try {
-      const response = await apiClient.put(`/transactions/${id}/undo-return`, {
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.put(`/transactions/${id}/undo-return`);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to undo return');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
   // Extend due date
-  extendDueDate: async (id: number, days: number, userId?: number) => {
+  extendDueDate: async (id: number, days: number) => {
     try {
-      const response = await apiClient.put(`/transactions/${id}/extend`, {
-        days,
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.put(`/transactions/${id}/extend`, { days });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to extend due date');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -293,11 +407,7 @@ export const transactionService = {
       const response = await apiClient.get('/transactions/stats');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch statistics');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -309,11 +419,7 @@ export const transactionService = {
       });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Search failed');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -323,11 +429,7 @@ export const transactionService = {
       const response = await apiClient.post('/transactions/update-overdue');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to update overdue status');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -337,11 +439,7 @@ export const transactionService = {
       const response = await apiClient.get('/transactions/helpers/available-books');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch available books');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -351,11 +449,7 @@ export const transactionService = {
       const response = await apiClient.get('/transactions/helpers/students');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to fetch students');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
@@ -367,28 +461,18 @@ export const transactionService = {
       });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Search failed');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 
   // Create student
-  createStudent: async (studentData: any, userId?: number) => {
+  createStudent: async (studentData: any) => {
     try {
-      const response = await apiClient.post('/transactions/helpers/students', {
-        ...studentData,
-        userId
-      });
+      // userId is now obtained from JWT token on backend
+      const response = await apiClient.post('/transactions/helpers/students', studentData);
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(error.response.data.message || 'Failed to create student');
-      } else {
-        throw new Error('Cannot connect to server');
-      }
+      throw error;
     }
   },
 };

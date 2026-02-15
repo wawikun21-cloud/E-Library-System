@@ -31,15 +31,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(true)
 
     try {
-      // Call the login API
+      // Call the login API (now returns JWT token)
       const response = await authService.login(username, password)
       
-      if (response.success) {
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(response.user))
-        localStorage.setItem('isAuthenticated', 'true')
-        
-        // Call the onLogin callback with user data
+      if (response.success && response.token) {
+        // Token and user data are already stored in authService.login
+        // Just call the onLogin callback with user data
         onLogin(response.user)
       } else {
         setError(response.message || 'Login failed')

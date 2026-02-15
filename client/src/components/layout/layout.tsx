@@ -51,17 +51,38 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  // Get user data from localStorage
-  const userData = JSON.parse(localStorage.getItem('user') || '{}')
+  // Safe helper to get user data from localStorage
+  const getUserDataFromStorage = () => {
+    try {
+      const stored = localStorage.getItem('user')
+      if (!stored) return {}
+      const parsed = JSON.parse(stored)
+      return parsed || {}
+    } catch (error) {
+      console.error('Error parsing user data from localStorage:', error)
+      return {}
+    }
+  }
   
-  // Profile form state
-  const [fullName, setFullName] = useState(userData.full_name || '')
-  const [username, setUsername] = useState(userData.username || '')
+  // Get user data from localStorage
+  const userData = getUserDataFromStorage()
+  
+  // ✅ FIX: Initialize with user prop to sync with parent state
+  const [fullName, setFullName] = useState(user?.full_name || userData.full_name || '')
+  const [username, setUsername] = useState(user?.username || userData.username || '')
   
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+
+  // ✅ FIX: Sync form state when user prop changes
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name || '')
+      setUsername(user.username || '')
+    }
+  }, [user])
 
   // Load theme from localStorage on mount
   useEffect(() => {
@@ -82,16 +103,37 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
 
   // Get user initials for avatar
   const getUserInitials = () => {
-    if (!user) return 'U'
-    const names = user.full_name.split(' ')
+    // ✅ FIX: Use fullName state instead of user prop for real-time updates
+    const nameToUse = fullName || user?.full_name || 'User'
+    
+    if (!nameToUse || typeof nameToUse !== 'string' || nameToUse.trim() === '' || nameToUse === 'User') {
+      return 'U'
+    }
+    
+    const trimmedName = nameToUse.trim()
+    const names = trimmedName.split(' ').filter(name => name.length > 0)
+    
+    // If we have at least 2 names, use first letter of first and second name
     if (names.length >= 2) {
       return `${names[0][0]}${names[1][0]}`.toUpperCase()
     }
-    return user.full_name.substring(0, 2).toUpperCase()
+    
+    // If we have only one name with at least 2 characters
+    if (names.length === 1 && names[0].length >= 2) {
+      return names[0].substring(0, 2).toUpperCase()
+    }
+    
+    // If we have only one character
+    if (names.length === 1 && names[0].length === 1) {
+      return names[0][0].toUpperCase()
+    }
+    
+    // Fallback
+    return 'U'
   }
 
-  // Get display name (fallback if user is null)
-  const displayName = user?.full_name || 'User'
+  // ✅ FIX: Use state values for display to show real-time updates
+  const displayName = fullName || user?.full_name || 'User'
   const displayEmail = user?.email || 'user@library.com'
   const displayRole = user?.role || 'user'
 
@@ -110,112 +152,120 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
     setIsProfileModalOpen(true)
     setError("")
     setSuccess("")
-    // Reset form to current user data
-    const userData = JSON.parse(localStorage.getItem('user') || '{}')
-    setFullName(userData.full_name || '')
-    setUsername(userData.username || '')
+    // ✅ FIX: Reset form to current user data from user prop
+    if (user) {
+      setFullName(user.full_name || '')
+      setUsername(user.username || '')
+    }
     setCurrentPassword('')
     setNewPassword('')
     setConfirmPassword('')
   }
 
-  const handleUpdateProfile = async () => {
+  // ✅ FIX: Combined save function for both profile and password
+  const handleSaveChanges = async () => {
     setError("")
     setSuccess("")
     setIsLoading(true)
 
     try {
-      // Validate inputs
-      if (!fullName.trim() || !username.trim()) {
-        setError("Full name and username are required")
+      // Determine what needs to be updated
+      const hasProfileChanges = fullName.trim() && username.trim()
+      const hasPasswordChanges = currentPassword && newPassword && confirmPassword
+
+      if (!hasProfileChanges && !hasPasswordChanges) {
+        setError("No changes to save")
         setIsLoading(false)
         return
       }
 
-      const userData = JSON.parse(localStorage.getItem('user') || '{}')
-
-      // Update profile
-      const response = await authService.updateProfile(
-        userData.user_id,
-        fullName.trim(),
-        username.trim()
-      )
-
-      if (response.success) {
-        // Update localStorage
-        const updatedUser = {
-          ...userData,
-          full_name: fullName.trim(),
-          username: username.trim(),
+      // Validate profile changes
+      if (hasProfileChanges) {
+        if (!fullName.trim() || !username.trim()) {
+          setError("Full name and username are required")
+          setIsLoading(false)
+          return
         }
-        localStorage.setItem('user', JSON.stringify(updatedUser))
-        
+      }
+
+      // Validate password changes
+      if (hasPasswordChanges) {
+        if (newPassword.length < 6) {
+          setError("New password must be at least 6 characters")
+          setIsLoading(false)
+          return
+        }
+
+        if (newPassword !== confirmPassword) {
+          setError("New passwords do not match")
+          setIsLoading(false)
+          return
+        }
+      }
+
+      const userData = getUserDataFromStorage()
+      let profileUpdated = false
+      let passwordUpdated = false
+
+      // Update profile if changed
+      if (hasProfileChanges) {
+        const profileResponse = await authService.updateProfile(
+          fullName.trim(),
+          username.trim()
+        )
+
+        if (profileResponse.success) {
+          // ✅ FIX: Update localStorage immediately for real-time effect
+          const updatedUser = {
+            ...userData,
+            full_name: fullName.trim(),
+            username: username.trim(),
+          }
+          localStorage.setItem('user', JSON.stringify(updatedUser))
+          profileUpdated = true
+        } else {
+          setError(profileResponse.message || "Failed to update profile")
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Update password if provided
+      if (hasPasswordChanges) {
+        const passwordResponse = await authService.updatePassword(
+          currentPassword,
+          newPassword
+        )
+
+        if (passwordResponse.success) {
+          passwordUpdated = true
+          setCurrentPassword('')
+          setNewPassword('')
+          setConfirmPassword('')
+        } else {
+          setError(passwordResponse.message || "Failed to update password")
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Show success message
+      if (profileUpdated && passwordUpdated) {
+        setSuccess("Profile and password updated successfully!")
+      } else if (profileUpdated) {
         setSuccess("Profile updated successfully!")
-        
-        // Close modal after 1.5 seconds
-        setTimeout(() => {
-          setIsProfileModalOpen(false)
-          window.location.reload() // Reload to reflect changes
-        }, 1500)
-      } else {
-        setError(response.message || "Failed to update profile")
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred while updating profile")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleUpdatePassword = async () => {
-    setError("")
-    setSuccess("")
-    setIsLoading(true)
-
-    try {
-      // Validate inputs
-      if (!currentPassword || !newPassword || !confirmPassword) {
-        setError("All password fields are required")
-        setIsLoading(false)
-        return
-      }
-
-      if (newPassword.length < 6) {
-        setError("New password must be at least 6 characters")
-        setIsLoading(false)
-        return
-      }
-
-      if (newPassword !== confirmPassword) {
-        setError("New passwords do not match")
-        setIsLoading(false)
-        return
-      }
-
-      const userData = JSON.parse(localStorage.getItem('user') || '{}')
-
-      // Update password
-      const response = await authService.updatePassword(
-        userData.user_id,
-        currentPassword,
-        newPassword
-      )
-
-      if (response.success) {
+      } else if (passwordUpdated) {
         setSuccess("Password updated successfully!")
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
-        
-        // Close modal after 1.5 seconds
-        setTimeout(() => {
-          setIsProfileModalOpen(false)
-        }, 1500)
-      } else {
-        setError(response.message || "Failed to update password")
       }
+
+      // Close modal after 1.5 seconds and reload to sync
+      setTimeout(() => {
+        setIsProfileModalOpen(false)
+        window.location.reload()
+      }, 1500)
+
     } catch (err: any) {
-      setError(err.message || "An error occurred while updating password")
+      setError(err.message || "An error occurred while saving changes")
     } finally {
       setIsLoading(false)
     }
@@ -507,15 +557,6 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                     className="h-9"
                   />
                 </div>
-
-                <Button 
-                  onClick={handleUpdateProfile}
-                  disabled={isLoading}
-                  className="w-full h-9"
-                  size="sm"
-                >
-                  {isLoading ? 'Updating...' : 'Update Profile'}
-                </Button>
               </div>
             </div>
 
@@ -525,7 +566,7 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Lock className="h-4 w-4" />
-                <span>Change Password</span>
+                <span>Change Password (Optional)</span>
               </div>
               
               <div className="space-y-2">
@@ -567,21 +608,27 @@ export default function Layout({ children, currentPage, setCurrentPage, onLogout
                     className="h-9"
                   />
                 </div>
-
-                <Button 
-                  onClick={handleUpdatePassword}
-                  disabled={isLoading}
-                  variant="secondary"
-                  className="w-full h-9"
-                  size="sm"
-                >
-                  {isLoading ? 'Updating...' : 'Change Password'}
-                </Button>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="pt-2">
+          {/* ✅ FIX: Single Save Button for all changes */}
+          <DialogFooter className="pt-2 flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsProfileModalOpen(false)}
+              disabled={isLoading}
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveChanges}
+              disabled={isLoading}
+              size="sm"
+            >
+              {isLoading ? 'Saving...' : 'Save Changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

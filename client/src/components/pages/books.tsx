@@ -175,7 +175,7 @@ export default function BooksPage({ user }: BooksPageProps) {
         description: formData.description || null,
         location: formData.location || null,
       }
-
+      
       if (editingBook) {
         // Update existing book
         const response = await bookService.update(editingBook.book_id, bookData, user?.user_id)
@@ -630,7 +630,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                         onClick={() => setSelectedCategory(category)}
                         className={`h-8 text-xs font-medium transition-all ${
                           selectedCategory === category
-                            ? 'bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
+                            ? 'text-white bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
                             : 'hover:border-[#9770FF] hover:text-[#9770FF]'
                         }`}
                       >
@@ -653,7 +653,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                       onClick={() => setAvailabilityFilter('all')}
                       className={`h-8 text-xs font-medium transition-all ${
                         availabilityFilter === 'all'
-                          ? 'bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
+                          ? 'text-white bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
                           : 'hover:border-[#9770FF] hover:text-[#9770FF]'
                       }`}
                     >
@@ -665,7 +665,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                       onClick={() => setAvailabilityFilter('available')}
                       className={`h-8 text-xs font-medium transition-all ${
                         availabilityFilter === 'available'
-                          ? 'bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
+                          ? 'text-white bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
                           : 'hover:border-[#9770FF] hover:text-[#9770FF]'
                       }`}
                     >
@@ -677,7 +677,7 @@ export default function BooksPage({ user }: BooksPageProps) {
                       onClick={() => setAvailabilityFilter('unavailable')}
                       className={`h-8 text-xs font-medium transition-all ${
                         availabilityFilter === 'unavailable'
-                          ? 'bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
+                          ? 'text-white bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-md'
                           : 'hover:border-[#9770FF] hover:text-[#9770FF]'
                       }`}
                     >
