@@ -1,4 +1,5 @@
 const Book = require('../models/book');
+const axios = require('axios');
 
 class BookController {
   // Get all books
@@ -42,6 +43,96 @@ class BookController {
       res.status(500).json({
         success: false,
         message: 'Failed to fetch book'
+      });
+    }
+  }
+
+  // Get book information by ISBN from Google Books API
+  static async getBookByISBN(req, res) {
+    try {
+      const { isbn } = req.params;
+
+      if (!isbn || isbn.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'ISBN is required'
+        });
+      }
+
+      console.log('Fetching book info for ISBN:', isbn);
+
+      // Build URL with optional API key
+      const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+      const googleBooksUrl = apiKey 
+        ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${apiKey}`
+        : `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
+      
+      console.log('Using Google Books API:', apiKey ? 'with API key' : 'without API key');
+
+      // Call Google Books API
+      const response = await axios.get(googleBooksUrl, {
+        timeout: 8000 // 8 second timeout
+      });
+
+      if (!response.data.items || response.data.items.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Book not found for this ISBN'
+        });
+      }
+
+      // Extract book information from the first result
+      const bookInfo = response.data.items[0].volumeInfo;
+      
+      // Format the data to match our expected structure
+      const formattedData = {
+        title: bookInfo.title || '',
+        authors: bookInfo.authors ? bookInfo.authors.join(', ') : '',
+        publisher: bookInfo.publisher || '',
+        publishedDate: bookInfo.publishedDate || '',
+        description: bookInfo.description || '',
+        thumbnail: bookInfo.imageLinks?.thumbnail || bookInfo.imageLinks?.smallThumbnail || '',
+        categories: bookInfo.categories ? bookInfo.categories.join(', ') : '',
+        pageCount: bookInfo.pageCount || null,
+        language: bookInfo.language || '',
+      };
+
+      console.log('Book info fetched successfully:', formattedData.title);
+
+      res.json({
+        success: true,
+        data: formattedData
+      });
+    } catch (error) {
+      console.error('Get book by ISBN error:', error.message);
+      
+      // Handle rate limiting (429 error)
+      if (error.response && error.response.status === 429) {
+        return res.status(429).json({
+          success: false,
+          message: 'Rate limit exceeded. Please try again later or add a Google Books API key.'
+        });
+      }
+      
+      // Handle timeout
+      if (error.code === 'ECONNABORTED') {
+        return res.status(408).json({
+          success: false,
+          message: 'Request timeout. Please try again.'
+        });
+      }
+      
+      if (error.response) {
+        // Google Books API returned an error
+        return res.status(error.response.status || 500).json({
+          success: false,
+          message: 'Failed to fetch book information from Google Books'
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch book information'
       });
     }
   }
