@@ -1,24 +1,95 @@
-# Logs
-logs
-*.log
+# ============================================================
+# LEXORA LIBRARY MANAGEMENT SYSTEM — .gitignore
+# ============================================================
+
+# ── SECRETS & CREDENTIALS (NEVER commit these) ──────────────
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+
+# ── TLS / SSL CERTIFICATES & KEYS ───────────────────────────
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+client/certs/
+server/certs/
+certs/
+
+# ── NODE ─────────────────────────────────────────────────────
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.npm
+.yarn
 
-node_modules
-dist
-dist-ssr
-*.local
+# ── BUILD OUTPUT ─────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+out/
+.vite/
 
-# Editor directories and files
+# ── LOGS ─────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ── DATABASE ─────────────────────────────────────────────────
+*.sql.bak
+*.sqlite
+*.sqlite3
+*.db
+dump.sql
+backup_*.sql
+
+# ── MIGRATION / SEED SCRIPTS (keep in /scripts, not server/) ─
+server/password_migration.js
+scripts/fix_null_hash.sql
+fix_null_hash.sql
+
+# ── OS FILES ─────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── EDITOR / IDE ─────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
+.project
+.classpath
+
+# ── TESTING & COVERAGE ───────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ── MISC ─────────────────────────────────────────────────────
+*.local
+*.backup
+*.bak
+*.tmp
+*.temp
