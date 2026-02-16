@@ -1,13 +1,11 @@
-const jwt  = require('jsonwebtoken');
-const User = require('../models/User');
+const jwt            = require('jsonwebtoken');
+const User           = require('../models/User');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 const COOKIE_NAME = 'lexora_token';
 
-// ── authenticate ──────────────────────────────────────────────────────────────
-// F-05 FIX: reads JWT from httpOnly cookie instead of Authorization header
 const authenticate = async (req, res, next) => {
   try {
-    // 1. Extract token from httpOnly cookie
     const token = req.cookies?.[COOKIE_NAME];
 
     if (!token) {
@@ -18,7 +16,7 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // 2. Verify token signature and expiry
+    // 1. Verify JWT signature and expiry
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -40,7 +38,19 @@ const authenticate = async (req, res, next) => {
       throw jwtError;
     }
 
-    // 3. Verify user still exists and is active in the database
+    // 2. F-10 FIX: check token is not blacklisted (logged out)
+    if (decoded.jti) {
+      const blacklisted = await TokenBlacklist.isBlacklisted(decoded.jti);
+      if (blacklisted) {
+        return res.status(401).json({
+          success: false,
+          message: 'Session has been invalidated. Please login again.',
+          code: 'TOKEN_REVOKED',
+        });
+      }
+    }
+
+    // 3. Verify user still exists and is active
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({
@@ -50,7 +60,7 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // 4. Attach safe user data to request — role sourced from DB, not token
+    // 4. Attach user data and token metadata to request
     req.user = {
       userId:   user.user_id,
       username: user.username,
@@ -58,6 +68,8 @@ const authenticate = async (req, res, next) => {
       email:    user.email,
       role:     user.role,
     };
+    req.tokenJti = decoded.jti; // used by logout and refresh to blacklist
+    req.tokenExp = decoded.exp; // unix timestamp — used to set blacklist expiry
 
     next();
   } catch (error) {
@@ -70,8 +82,6 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// ── optionalAuth ──────────────────────────────────────────────────────────────
-// Continues even if no cookie — used for public routes that show extra data when logged in
 const optionalAuth = async (req, res, next) => {
   try {
     const token = req.cookies?.[COOKIE_NAME];
@@ -83,11 +93,15 @@ const optionalAuth = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user    = await User.findById(decoded.userId);
+
+      // Skip blacklist check for optional auth — performance optimisation
+      const user = await User.findById(decoded.userId);
       req.user = user
         ? { userId: user.user_id, username: user.username,
             fullName: user.full_name, email: user.email, role: user.role }
         : null;
+      req.tokenJti = decoded.jti;
+      req.tokenExp = decoded.exp;
     } catch {
       req.user = null;
     }

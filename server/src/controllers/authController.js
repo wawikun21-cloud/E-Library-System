@@ -1,14 +1,16 @@
-const jwt  = require('jsonwebtoken');
-const User = require('../models/User');
+const jwt            = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const User           = require('../models/User');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 const COOKIE_NAME = 'lexora_token';
 
 const cookieOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure:   process.env.NODE_ENV === 'production',
   sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  maxAge: parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
-  path: '/',
+  maxAge:   parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
+  path:     '/',
 });
 
 function parseDuration(str) {
@@ -19,9 +21,10 @@ function parseDuration(str) {
 
 class AuthController {
 
+  // F-10 FIX: include jti (JWT ID) in every token so it can be blacklisted
   static generateToken(userId) {
     return jwt.sign(
-      { userId },
+      { userId, jti: uuidv4() },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
@@ -41,7 +44,6 @@ class AuthController {
       }
 
       const user = await User.verifyCredentials(username, password);
-
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -56,7 +58,6 @@ class AuthController {
       const ipAddress = req.ip || req.connection.remoteAddress;
       await User.logActivity(user.user_id, 'LOGIN', 'User logged in', ipAddress);
 
-      // F-05: set token as httpOnly cookie, NOT in response body
       res.cookie(COOKIE_NAME, token, cookieOptions());
 
       return res.json({
@@ -82,24 +83,30 @@ class AuthController {
   }
 
   // POST /api/auth/logout
+  // F-10 FIX: blacklists the current token JTI so it can't be reused
   static async logout(req, res) {
     try {
-      if (req.user) {
+      if (req.user && req.tokenJti) {
+        // Blacklist the current token
+        const expiresAt = new Date(req.tokenExp * 1000); // tokenExp set by middleware
+        await TokenBlacklist.add(req.tokenJti, req.user.userId, expiresAt);
+
         const ipAddress = req.ip || req.connection.remoteAddress;
         await User.logActivity(req.user.userId, 'LOGOUT', 'User logged out', ipAddress);
       }
 
-      // F-05: clear the httpOnly cookie
       res.clearCookie(COOKIE_NAME, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure:   process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        path: '/',
+        path:     '/',
       });
 
       return res.json({ success: true, message: 'Logout successful' });
     } catch (error) {
       console.error('Logout error:', error);
+      // Still clear the cookie even if blacklist fails
+      res.clearCookie(COOKIE_NAME, { httpOnly: true, path: '/' });
       return res.status(500).json({
         success: false,
         message: 'An error occurred during logout',
@@ -266,10 +273,22 @@ class AuthController {
 
       await User.updatePassword(userId, newPassword);
 
+      // F-10: blacklist the current token so user must log in fresh
+      if (req.tokenJti) {
+        const expiresAt = new Date(req.tokenExp * 1000);
+        await TokenBlacklist.add(req.tokenJti, userId, expiresAt);
+      }
+
       const ipAddress = req.ip || req.connection.remoteAddress;
       await User.logActivity(userId, 'PASSWORD_CHANGE', 'Password changed', ipAddress);
 
-      return res.json({ success: true, message: 'Password updated successfully' });
+      // Clear the cookie — user must login again with new password
+      res.clearCookie(COOKIE_NAME, { httpOnly: true, path: '/' });
+
+      return res.json({
+        success: true,
+        message: 'Password updated successfully. Please login again with your new password.',
+      });
     } catch (error) {
       console.error('Update password error:', error);
       return res.status(500).json({
@@ -281,10 +300,19 @@ class AuthController {
   }
 
   // POST /api/auth/refresh
+  // F-10 FIX: blacklists old token before issuing new one
   static async refreshToken(req, res) {
     try {
+      // Blacklist the old token
+      if (req.tokenJti) {
+        const expiresAt = new Date(req.tokenExp * 1000);
+        await TokenBlacklist.add(req.tokenJti, req.user.userId, expiresAt);
+      }
+
+      // Issue new token with fresh JTI
       const newToken = AuthController.generateToken(req.user.userId);
       res.cookie(COOKIE_NAME, newToken, cookieOptions());
+
       return res.json({ success: true, message: 'Token refreshed successfully' });
     } catch (error) {
       console.error('Refresh token error:', error);

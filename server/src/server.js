@@ -4,7 +4,7 @@
 // ============================================
 require('dotenv').config();
 
-// Verify JWT_SECRET is loaded (for debugging)
+// Verify JWT_SECRET is loaded
 if (!process.env.JWT_SECRET) {
   console.error('CRITICAL ERROR: JWT_SECRET is not defined in .env file!');
   console.error('Please check that .env file exists in server root directory');
@@ -15,7 +15,9 @@ const express      = require('express');
 const cors         = require('cors');
 const helmet       = require('helmet');
 const rateLimit    = require('express-rate-limit');
-const cookieParser = require('cookie-parser'); // F-05: read httpOnly cookies
+const cookieParser = require('cookie-parser');
+const morgan       = require('morgan');
+const logger       = require('./config/logger'); // F-14: Winston logger
 
 // Import routes
 const authRoutes        = require('./routes/authRoutes');
@@ -55,11 +57,23 @@ app.use(helmet({
 app.use(cookieParser());
 
 // ============================================
+// F-14: HTTP REQUEST LOGGING (Morgan → Winston)
+// Replaces the manual console.log logger
+// ============================================
+const morganStream = { write: (message) => logger.info(message.trim()) };
+app.use(morgan(
+  isDev
+    ? 'dev'
+    : ':remote-addr :method :url :status :res[content-length] - :response-time ms',
+  { stream: morganStream }
+));
+
+// ============================================
 // F-03: RATE LIMITERS
 // ============================================
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: isDev ? 1000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -119,16 +133,6 @@ app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
 // ============================================
-// REQUEST LOGGING (development only)
-// ============================================
-if (isDev) {
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
-  });
-}
-
-// ============================================
 // ROUTES
 // ============================================
 app.get('/', (req, res) => {
@@ -153,6 +157,13 @@ app.use(errorHandler);
 // START SERVER
 // ============================================
 const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info('Lexora Library Management System started', {
+    port:    PORT,
+    env:     process.env.NODE_ENV || 'development',
+    helmet:  'enabled',
+    cookies: 'httpOnly JWT',
+    limiter: 'login:10/15min, global:200/15min',
+  });
   console.log('─────────────────────────────────────────');
   console.log('  Lexora Library Management System');
   console.log('─────────────────────────────────────────');
@@ -161,6 +172,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Helmet  : enabled`);
   console.log(`  Cookies : enabled (httpOnly JWT)`);
   console.log(`  Limiter : enabled (login: 10/15min, global: 200/15min)`);
+  console.log(`  Logging : enabled (Winston + Morgan → logs/)`);
   console.log(`  JWT     : ${process.env.JWT_SECRET ? 'loaded' : 'MISSING'}`);
   console.log('─────────────────────────────────────────');
 });
@@ -169,13 +181,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // GRACEFUL SHUTDOWN
 // ============================================
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received — closing server gracefully');
-  server.close(() => { console.log('Server closed.'); process.exit(0); });
+  logger.info('SIGTERM received — closing server gracefully');
+  server.close(() => { logger.info('Server closed.'); process.exit(0); });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received — closing server gracefully');
-  server.close(() => { console.log('Server closed.'); process.exit(0); });
+  logger.info('SIGINT received — closing server gracefully');
+  server.close(() => { logger.info('Server closed.'); process.exit(0); });
 });
 
 module.exports = app;
