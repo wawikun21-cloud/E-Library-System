@@ -10,7 +10,6 @@ import LoginPage from './components/pages/login';
 import { authService } from './services/api';
 import './index.css'
 
-// Define user type
 interface User {
   user_id: number;
   username: string;
@@ -25,59 +24,44 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [loginKey, setLoginKey] = useState(0) // Force login component to remount
+  const [loginKey, setLoginKey] = useState(0)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
-  // Check theme from localStorage
+  // ── Theme ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const savedTheme = localStorage.getItem('lexora-theme') as 'light' | 'dark' | null
-    if (savedTheme) {
-      setTheme(savedTheme)
-    }
+    if (savedTheme) setTheme(savedTheme)
 
-    // Listen for theme changes
     const handleStorageChange = () => {
       const newTheme = localStorage.getItem('lexora-theme') as 'light' | 'dark' | null
-      if (newTheme) {
-        setTheme(newTheme)
-      }
+      if (newTheme) setTheme(newTheme)
     }
 
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
-  // Check authentication status on app load
+  // ── Session check on app load ────────────────────────────────────────────────
+  // F-05 FIX: removed isAuthenticated() pre-check — that checked in-memory state
+  // which is always null on page refresh. Now we ALWAYS call verifySession() and
+  // let the server-side httpOnly cookie decide if the session is valid.
   useEffect(() => {
     const checkAuth = async () => {
-      // Check if token exists
-      if (!authService.isAuthenticated()) {
-        setIsAuthenticated(false)
-        setUser(null)
-        setIsLoading(false)
-        return
-      }
-
       try {
-        // Verify token with backend
         const response = await authService.verifySession()
-        
+
         if (response.success && response.user) {
           setIsAuthenticated(true)
           setUser(response.user)
         } else {
-          // Token invalid
           setIsAuthenticated(false)
           setUser(null)
-          // Clear invalid token
-          await authService.logout()
         }
-      } catch (error) {
-        console.error('Session verification failed:', error)
+      } catch (error: any) {
+        // 401 means no valid cookie — not an error, just not logged in
+        // Any other error (network down etc.) also means we show login
         setIsAuthenticated(false)
         setUser(null)
-        // Clear invalid token
-        await authService.logout()
       } finally {
         setIsLoading(false)
       }
@@ -86,71 +70,55 @@ function App() {
     checkAuth()
   }, [])
 
-  // Listen for auth:logout event from API interceptor
+  // ── Listen for auth:logout events from API interceptor ───────────────────────
   useEffect(() => {
     const handleAuthLogout = (event: CustomEvent) => {
       const reason = event.detail?.reason
-      
-      // Show appropriate message
+
       if (reason === 'TOKEN_EXPIRED') {
         toast.warning('Your session has expired. Please login again.')
       } else if (reason === 'INVALID_TOKEN') {
         toast.error('Invalid session. Please login again.')
       }
-      
-      // Trigger logout
+
       handleLogout()
     }
 
     window.addEventListener('auth:logout', handleAuthLogout as EventListener)
-    
-    return () => {
-      window.removeEventListener('auth:logout', handleAuthLogout as EventListener)
-    }
+    return () => window.removeEventListener('auth:logout', handleAuthLogout as EventListener)
   }, [])
 
-  // Handle successful login
+  // ── Login ─────────────────────────────────────────────────────────────────────
   const handleLogin = (userData: User) => {
     setIsAuthenticated(true)
     setUser(userData)
-    // Token and localStorage already set in authService.login
   }
 
-  // Handle logout
+  // ── Logout ────────────────────────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
-      // Call backend logout endpoint
-      await authService.logout()
+      await authService.logout() // clears httpOnly cookie via server
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      // Clear authentication state
       setIsAuthenticated(false)
       setUser(null)
       setCurrentPage('dashboard')
-      
-      // Force login component to remount with fresh state
       setLoginKey(prev => prev + 1)
-      
-      console.log('User logged out successfully')
     }
   }
 
-  // Render different pages
+  // ── Page renderer ─────────────────────────────────────────────────────────────
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':
-        return <HomePage user={user} />
-      case 'books':
-        return <BooksPage user={user} />
-      case 'borrowed':
-        return <BorrowedPage user={user} />
-      default:
-        return <HomePage user={user} />
+      case 'dashboard': return <HomePage user={user} />
+      case 'books':     return <BooksPage user={user} />
+      case 'borrowed':  return <BorrowedPage user={user} />
+      default:          return <HomePage user={user} />
     }
   }
 
-  // Show loading state while checking authentication
+  // ── Loading state ─────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -162,8 +130,7 @@ function App() {
     )
   }
 
-  // Show login page if not authenticated
-  // key={loginKey} forces component to fully remount after logout
+  // ── Unauthenticated ───────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <>
@@ -184,11 +151,11 @@ function App() {
     )
   }
 
-  // Show main app if authenticated
+  // ── Authenticated ─────────────────────────────────────────────────────────────
   return (
     <>
-      <Layout 
-        currentPage={currentPage} 
+      <Layout
+        currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogout={handleLogout}
         user={user}

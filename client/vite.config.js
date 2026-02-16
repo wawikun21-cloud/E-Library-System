@@ -1,7 +1,6 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import fs from "fs"
 
 export default defineConfig({
   base: '/',
@@ -17,14 +16,17 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    https: {
-      key: fs.readFileSync('./certs/key.pem'),
-      cert: fs.readFileSync('./certs/cert.pem'),
-    },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        // F-05 FIX: rewrite Set-Cookie domain so the browser accepts
+        // cookies from :5000 responses when proxied through :5173
+        cookieDomainRewrite: {
+          'localhost:5000': 'localhost',
+          'localhost': 'localhost',
+        },
+        cookiePathRewrite: { '*': '/' },
       }
     }
   },
@@ -32,14 +34,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 4173,
     strictPort: true,
-    https: {
-      key: fs.readFileSync('./certs/key.pem'),
-      cert: fs.readFileSync('./certs/cert.pem'),
-    },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        cookieDomainRewrite: {
+          'localhost:5000': 'localhost',
+          'localhost': 'localhost',
+        },
+        cookiePathRewrite: { '*': '/' },
       }
     }
   }

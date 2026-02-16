@@ -1,108 +1,71 @@
 import axios from 'axios';
 
-// API base URL
-// Uses relative path '/api' so Vite proxy forwards requests to backend
-// This works for both dev (https://192.168.1.4:5173) and preview (https://192.168.1.4:4173)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-// Create axios instance
+// ============================================
+// F-05 FIX: withCredentials: true
+// This tells Axios to send the httpOnly cookie
+// on every request automatically.
+// No token storage, no localStorage auth_token.
+// ============================================
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
+  withCredentials: true, // F-05: sends the httpOnly cookie automatically
 });
 
 // ============================================
-// TOKEN MANAGEMENT
+// USER DATA — in memory only (not localStorage)
+// Non-sensitive display data (username, role, etc.)
+// The actual JWT never touches JS memory.
 // ============================================
+let _currentUser: any = null;
 
-/**
- * Get JWT token from localStorage
- */
-const getToken = (): string | null => {
-  return localStorage.getItem('auth_token');
-};
-
-/**
- * Set JWT token in localStorage
- */
-const setToken = (token: string): void => {
-  localStorage.setItem('auth_token', token);
-};
-
-/**
- * Remove JWT token from localStorage
- */
-const removeToken = (): void => {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('user');
-  localStorage.removeItem('isAuthenticated');
-};
-
-/**
- * Save user data to localStorage
- */
 const saveUserData = (user: any): void => {
-  localStorage.setItem('user', JSON.stringify(user));
-  localStorage.setItem('isAuthenticated', 'true');
+  _currentUser = user;
 };
 
-/**
- * Get user data from localStorage
- */
 const getUserData = (): any => {
-  const data = localStorage.getItem('user');
-  return data ? JSON.parse(data) : null;
+  return _currentUser;
+};
+
+const clearUserData = (): void => {
+  _currentUser = null;
 };
 
 // ============================================
-// REQUEST INTERCEPTOR - Add token to requests
+// RESPONSE INTERCEPTOR
 // ============================================
-
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = getToken();
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// ============================================
-// RESPONSE INTERCEPTOR - Handle token errors
-// ============================================
-
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
       const { status, data } = error.response;
-      
-      // Token expired or invalid
-      if (status === 401 && (data.code === 'TOKEN_EXPIRED' || data.code === 'INVALID_TOKEN' || data.code === 'NO_TOKEN')) {
-        // Clear token and trigger logout
-        removeToken();
-        
-        // Dispatch custom event to trigger logout in App component
-        window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: data.code } }));
-        
+
+      // Only fire auth:logout if the user WAS logged in (has user data in memory)
+      // This prevents the logout event firing on the initial verifySession() call
+      // when there is simply no cookie yet (user never logged in this session)
+      if (status === 401 && (
+        data.code === 'TOKEN_EXPIRED' ||
+        data.code === 'INVALID_TOKEN' ||
+        data.code === 'NO_TOKEN'
+      )) {
+        if (_currentUser !== null) {
+          // User WAS logged in — session expired or token invalid
+          clearUserData();
+          window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: data.code } }));
+        } else {
+          // User was never logged in — just a cold start with no cookie
+          clearUserData();
+        }
         throw new Error(data.message || 'Session expired. Please login again.');
       }
-      
-      // Forbidden - insufficient permissions
+
       if (status === 403) {
         throw new Error(data.message || 'Access denied. Insufficient permissions.');
       }
-      
-      // Handle other errors
+
       throw new Error(data.message || 'An error occurred');
     } else if (error.request) {
       throw new Error('Cannot connect to server. Please check if the server is running.');
@@ -113,378 +76,190 @@ apiClient.interceptors.response.use(
 );
 
 // ============================================
-// AUTH SERVICE - UPDATED WITH JWT
+// AUTH SERVICE
 // ============================================
-
 export const authService = {
-  /**
-   * Login user and store token
-   */
+
   login: async (username: string, password: string) => {
-    try {
-      const response = await apiClient.post('/auth/login', { username, password });
-      
-      if (response.data.success && response.data.token) {
-        // Store token and user data
-        setToken(response.data.token);
-        saveUserData(response.data.user);
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      throw error;
+    const response = await apiClient.post('/auth/login', { username, password });
+    // Server sets httpOnly cookie automatically in the response headers.
+    // We only store non-sensitive display data in memory.
+    if (response.data.success && response.data.user) {
+      saveUserData(response.data.user);
     }
+    return response.data;
   },
 
-  /**
-   * Logout user and clear token
-   */
   logout: async () => {
     try {
-      // Call backend logout endpoint (requires auth token)
       await apiClient.post('/auth/logout');
+      // Server clears the httpOnly cookie via Set-Cookie header.
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear token locally, even if request fails
-      removeToken();
+      clearUserData();
     }
   },
 
-  /**
-   * Verify if current token is valid
-   */
   verifySession: async () => {
-    try {
-      const response = await apiClient.post('/auth/verify');
-      
-      if (response.data.success && response.data.user) {
-        // Update user data
-        saveUserData(response.data.user);
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      throw error;
+    const response = await apiClient.post('/auth/verify');
+    if (response.data.success && response.data.user) {
+      saveUserData(response.data.user);
     }
+    return response.data;
   },
 
-  /**
-   * Get current logged-in user
-   */
   getCurrentUser: async () => {
-    try {
-      const response = await apiClient.get('/auth/me');
-      
-      if (response.data.success) {
-        saveUserData(response.data.user);
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      throw error;
+    const response = await apiClient.get('/auth/me');
+    if (response.data.success && response.data.user) {
+      saveUserData(response.data.user);
     }
+    return response.data;
   },
 
-  /**
-   * Update user profile
-   */
   updateProfile: async (fullName: string, username: string) => {
-    try {
-      const response = await apiClient.put('/auth/profile', {
-        fullName,
-        username,
-      });
-      
-      if (response.data.success) {
-        saveUserData(response.data.user);
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      throw error;
+    const response = await apiClient.put('/auth/profile', { fullName, username });
+    if (response.data.success && response.data.user) {
+      saveUserData(response.data.user);
     }
+    return response.data;
   },
 
-  /**
-   * Update password
-   */
   updatePassword: async (currentPassword: string, newPassword: string) => {
-    try {
-      const response = await apiClient.put('/auth/password', {
-        currentPassword,
-        newPassword,
-      });
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.put('/auth/password', { currentPassword, newPassword });
+    return response.data;
   },
 
-  /**
-   * Refresh token
-   */
   refreshToken: async () => {
-    try {
-      const response = await apiClient.post('/auth/refresh');
-      
-      if (response.data.success && response.data.token) {
-        setToken(response.data.token);
-      }
-      
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    // Server issues a new cookie — no token handling needed here
+    const response = await apiClient.post('/auth/refresh');
+    return response.data;
   },
 
-  /**
-   * Check if user is authenticated
-   */
   isAuthenticated: (): boolean => {
-    return !!getToken();
+    // Can't check the httpOnly cookie from JS — use in-memory user as proxy.
+    // For a hard check, call verifySession() which hits the server.
+    return _currentUser !== null;
   },
 
-  /**
-   * Get stored user data
-   */
-  getUser: () => {
-    return getUserData();
-  },
+  getUser: () => getUserData(),
 
-  /**
-   * Get stored token
-   */
-  getToken: () => {
-    return getToken();
-  },
+  // getToken() removed — the token is in an httpOnly cookie and
+  // intentionally inaccessible to JavaScript. This is the security guarantee.
 };
 
 // ============================================
-// BOOK SERVICE - No changes needed (uses interceptor)
+// BOOK SERVICE
 // ============================================
-
 export const bookService = {
   getAll: async () => {
-    try {
-      const response = await apiClient.get('/books');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/books');
+    return response.data;
   },
 
   getById: async (id: number) => {
-    try {
-      const response = await apiClient.get(`/books/${id}`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get(`/books/${id}`);
+    return response.data;
   },
 
   search: async (query: string) => {
-    try {
-      const response = await apiClient.get('/books/search', {
-        params: { q: query }
-      });
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/books/search', { params: { q: query } });
+    return response.data;
   },
 
   getByISBN: async (isbn: string) => {
-    try {
-      const response = await apiClient.get(`/books/isbn/${isbn}`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get(`/books/isbn/${isbn}`);
+    return response.data;
   },
 
   create: async (bookData: any) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.post('/books', bookData);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.post('/books', bookData);
+    return response.data;
   },
 
   update: async (id: number, bookData: any) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.put(`/books/${id}`, bookData);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.put(`/books/${id}`, bookData);
+    return response.data;
   },
 
   delete: async (id: number) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.delete(`/books/${id}`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.delete(`/books/${id}`);
+    return response.data;
   },
 
   getStats: async () => {
-    try {
-      const response = await apiClient.get('/books/stats');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/books/stats');
+    return response.data;
   },
 };
 
 // ============================================
-// TRANSACTION SERVICE - Updated (no userId params)
+// TRANSACTION SERVICE
 // ============================================
-
 export const transactionService = {
-  // Get all transactions
   getAll: async () => {
-    try {
-      const response = await apiClient.get('/transactions');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions');
+    return response.data;
   },
 
-  // Get single transaction
   getById: async (id: number) => {
-    try {
-      const response = await apiClient.get(`/transactions/${id}`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get(`/transactions/${id}`);
+    return response.data;
   },
 
-  // Create new transaction (borrow book)
   create: async (transactionData: any) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.post('/transactions', transactionData);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.post('/transactions', transactionData);
+    return response.data;
   },
 
-  // Return book
   returnBook: async (id: number) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.put(`/transactions/${id}/return`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.put(`/transactions/${id}/return`);
+    return response.data;
   },
 
-  // Undo return book
   undoReturn: async (id: number) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.put(`/transactions/${id}/undo-return`);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.put(`/transactions/${id}/undo-return`);
+    return response.data;
   },
 
-  // Extend due date
   extendDueDate: async (id: number, days: number) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.put(`/transactions/${id}/extend`, { days });
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.put(`/transactions/${id}/extend`, { days });
+    return response.data;
   },
 
-  // Get statistics
   getStats: async () => {
-    try {
-      const response = await apiClient.get('/transactions/stats');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions/stats');
+    return response.data;
   },
 
-  // Search transactions
   search: async (query: string) => {
-    try {
-      const response = await apiClient.get('/transactions/search', {
-        params: { q: query }
-      });
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions/search', { params: { q: query } });
+    return response.data;
   },
 
-  // Update overdue status
   updateOverdueStatus: async () => {
-    try {
-      const response = await apiClient.post('/transactions/update-overdue');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.post('/transactions/update-overdue');
+    return response.data;
   },
 
-  // Get available books
   getAvailableBooks: async () => {
-    try {
-      const response = await apiClient.get('/transactions/helpers/available-books');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions/helpers/available-books');
+    return response.data;
   },
 
-  // Get all students
   getStudents: async () => {
-    try {
-      const response = await apiClient.get('/transactions/helpers/students');
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions/helpers/students');
+    return response.data;
   },
 
-  // Search students
   searchStudents: async (query: string) => {
-    try {
-      const response = await apiClient.get('/transactions/helpers/students/search', {
-        params: { q: query }
-      });
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.get('/transactions/helpers/students/search', { params: { q: query } });
+    return response.data;
   },
 
-  // Create student
   createStudent: async (studentData: any) => {
-    try {
-      // userId is now obtained from JWT token on backend
-      const response = await apiClient.post('/transactions/helpers/students', studentData);
-      return response.data;
-    } catch (error: any) {
-      throw error;
-    }
+    const response = await apiClient.post('/transactions/helpers/students', studentData);
+    return response.data;
   },
 };
 

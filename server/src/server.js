@@ -6,63 +6,124 @@ require('dotenv').config();
 
 // Verify JWT_SECRET is loaded (for debugging)
 if (!process.env.JWT_SECRET) {
-  console.error('❌ CRITICAL ERROR: JWT_SECRET is not defined in .env file!');
+  console.error('CRITICAL ERROR: JWT_SECRET is not defined in .env file!');
   console.error('Please check that .env file exists in server root directory');
   process.exit(1);
 }
 
-const express = require('express');
-const cors = require('cors');
+const express      = require('express');
+const cors         = require('cors');
+const helmet       = require('helmet');
+const rateLimit    = require('express-rate-limit');
+const cookieParser = require('cookie-parser'); // F-05: read httpOnly cookies
 
 // Import routes
-const authRoutes = require('./routes/authRoutes');
-const bookRoutes = require('./routes/bookRoutes');
+const authRoutes        = require('./routes/authRoutes');
+const bookRoutes        = require('./routes/bookRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware');
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app   = express();
+const PORT  = process.env.PORT || 5000;
+const isDev = process.env.NODE_ENV === 'development';
 
 // ============================================
-// MIDDLEWARE CONFIGURATION
+// F-04: SECURITY HEADERS — must be first
 // ============================================
+app.use(helmet({
+  frameguard: { action: 'sameorigin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc:    ["'self'", 'https:'],
+      objectSrc:  ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  hsts: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
+}));
 
-// CORS Configuration
+// F-05: Parse cookies — must come after helmet, before routes
+app.use(cookieParser());
+
+// ============================================
+// F-03: RATE LIMITERS
+// ============================================
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many requests from this IP. Please try again later.',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    success: false,
+    message: 'Too many login attempts. Please try again in 15 minutes.',
+    code: 'LOGIN_RATE_LIMIT_EXCEEDED',
+  },
+});
+
+app.use('/api/', globalLimiter);
+app.set('loginLimiter', loginLimiter);
+
+// ============================================
+// CORS — F-08: local network only in dev
+// ============================================
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://localhost:5173',  // HTTPS dev
+  'https://localhost:5173',
   'http://localhost:4173',
-  'https://localhost:4173',  // HTTPS preview
+  'https://localhost:4173',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (Postman, curl, mobile apps)
     if (!origin) return callback(null, true);
 
-    // Allow both http AND https for local network IPs
-    const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
-
-    if (allowedOrigins.includes(origin) || isLocalNetwork) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS blocked: ${origin} is not allowed`));
+    if (isDev) {
+      const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+      if (isLocalNetwork) return callback(null, true);
     }
+
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    callback(new Error(`CORS blocked: ${origin} is not allowed`));
   },
-  credentials: true
+  credentials: true,
 }));
 
-// Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// ============================================
+// BODY PARSERS — F-11: 50kb limit
+// ============================================
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
-// Request logging (development only)
-if (process.env.NODE_ENV === 'development') {
+// ============================================
+// REQUEST LOGGING (development only)
+// ============================================
+if (isDev) {
   app.use((req, res, next) => {
-    console.log(`📨 ${req.method} ${req.path}`);
+    console.log(`${req.method} ${req.path}`);
     next();
   });
 }
@@ -70,50 +131,51 @@ if (process.env.NODE_ENV === 'development') {
 // ============================================
 // ROUTES
 // ============================================
-
-// Health check route
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     success: true,
     message: 'Lexora Library API is running!',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
+    ...(isDev && { version: '1.0.0', timestamp: new Date().toISOString() }),
   });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/books', bookRoutes);
+app.use('/api/auth',         authRoutes);
+app.use('/api/books',        bookRoutes);
 app.use('/api/transactions', transactionRoutes);
 
 // ============================================
-// ERROR HANDLING (Must be AFTER all routes)
+// ERROR HANDLING — must be after all routes
 // ============================================
-
 app.use(notFound);
 app.use(errorHandler);
 
 // ============================================
 // START SERVER
 // ============================================
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🚀 Lexora Library Management System');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`📡 Server running on: http://localhost:${PORT}`);
-  console.log(`📱 Network access on: http://<your-ip>:${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔐 JWT Secret: ${process.env.JWT_SECRET ? '✅ Loaded' : '❌ Missing'}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log('─────────────────────────────────────────');
+  console.log('  Lexora Library Management System');
+  console.log('─────────────────────────────────────────');
+  console.log(`  Server  : http://localhost:${PORT}`);
+  console.log(`  Env     : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  Helmet  : enabled`);
+  console.log(`  Cookies : enabled (httpOnly JWT)`);
+  console.log(`  Limiter : enabled (login: 10/15min, global: 200/15min)`);
+  console.log(`  JWT     : ${process.env.JWT_SECRET ? 'loaded' : 'MISSING'}`);
+  console.log('─────────────────────────────────────────');
 });
 
-// Graceful shutdown
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
 process.on('SIGTERM', () => {
-  console.log('⚠️  SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('✅ HTTP server closed');
-  });
+  console.log('SIGTERM received — closing server gracefully');
+  server.close(() => { console.log('Server closed.'); process.exit(0); });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received — closing server gracefully');
+  server.close(() => { console.log('Server closed.'); process.exit(0); });
 });
 
 module.exports = app;

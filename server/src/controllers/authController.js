@@ -1,9 +1,24 @@
 const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
 
+const COOKIE_NAME = 'lexora_token';
+
+const cookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  maxAge: parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
+  path: '/',
+});
+
+function parseDuration(str) {
+  const units = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  const match  = String(str).match(/^(\d+)([smhd])$/);
+  return match ? parseInt(match[1]) * (units[match[2]] || 3600000) : 86400000;
+}
+
 class AuthController {
 
-  // ── Generate JWT token ────────────────────────────────────────────────────
   static generateToken(userId) {
     return jwt.sign(
       { userId },
@@ -12,7 +27,7 @@ class AuthController {
     );
   }
 
-  // ── POST /api/auth/login ──────────────────────────────────────────────────
+  // POST /api/auth/login
   static async login(req, res) {
     try {
       const { username, password } = req.body;
@@ -25,7 +40,6 @@ class AuthController {
         });
       }
 
-      // verifyCredentials() now uses bcrypt.compare() internally
       const user = await User.verifyCredentials(username, password);
 
       if (!user) {
@@ -42,10 +56,12 @@ class AuthController {
       const ipAddress = req.ip || req.connection.remoteAddress;
       await User.logActivity(user.user_id, 'LOGIN', 'User logged in', ipAddress);
 
+      // F-05: set token as httpOnly cookie, NOT in response body
+      res.cookie(COOKIE_NAME, token, cookieOptions());
+
       return res.json({
         success: true,
         message: 'Login successful',
-        token,
         user: {
           user_id:    user.user_id,
           username:   user.username,
@@ -65,13 +81,22 @@ class AuthController {
     }
   }
 
-  // ── POST /api/auth/logout ─────────────────────────────────────────────────
+  // POST /api/auth/logout
   static async logout(req, res) {
     try {
       if (req.user) {
         const ipAddress = req.ip || req.connection.remoteAddress;
         await User.logActivity(req.user.userId, 'LOGOUT', 'User logged out', ipAddress);
       }
+
+      // F-05: clear the httpOnly cookie
+      res.clearCookie(COOKIE_NAME, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        path: '/',
+      });
+
       return res.json({ success: true, message: 'Logout successful' });
     } catch (error) {
       console.error('Logout error:', error);
@@ -83,7 +108,7 @@ class AuthController {
     }
   }
 
-  // ── GET /api/auth/me ──────────────────────────────────────────────────────
+  // GET /api/auth/me
   static async getCurrentUser(req, res) {
     try {
       const user = await User.findById(req.user.userId);
@@ -115,7 +140,7 @@ class AuthController {
     }
   }
 
-  // ── POST /api/auth/verify ─────────────────────────────────────────────────
+  // POST /api/auth/verify
   static async verifySession(req, res) {
     try {
       const user = await User.findById(req.user.userId);
@@ -149,7 +174,7 @@ class AuthController {
     }
   }
 
-  // ── PUT /api/auth/profile ─────────────────────────────────────────────────
+  // PUT /api/auth/profile
   static async updateProfile(req, res) {
     try {
       const { fullName, username } = req.body;
@@ -200,9 +225,7 @@ class AuthController {
     }
   }
 
-  // ── PUT /api/auth/password ────────────────────────────────────────────────
-  // F-01 FIX: uses User.verifyPassword() (bcrypt.compare) instead of === 
-  // F-07 FIX: minimum password length raised to 12 characters
+  // PUT /api/auth/password
   static async updatePassword(req, res) {
     try {
       const { currentPassword, newPassword } = req.body;
@@ -216,7 +239,6 @@ class AuthController {
         });
       }
 
-      // F-07: enforce minimum 12 characters
       if (newPassword.length < 12) {
         return res.status(400).json({
           success: false,
@@ -225,7 +247,6 @@ class AuthController {
         });
       }
 
-      // F-07: enforce maximum 128 characters (bcrypt silently truncates at 72 bytes)
       if (newPassword.length > 128) {
         return res.status(400).json({
           success: false,
@@ -234,7 +255,6 @@ class AuthController {
         });
       }
 
-      // F-01 FIX: use bcrypt.compare via User.verifyPassword()
       const isMatch = await User.verifyPassword(userId, currentPassword);
       if (!isMatch) {
         return res.status(401).json({
@@ -244,7 +264,6 @@ class AuthController {
         });
       }
 
-      // updatePassword() now hashes before storing
       await User.updatePassword(userId, newPassword);
 
       const ipAddress = req.ip || req.connection.remoteAddress;
@@ -261,15 +280,12 @@ class AuthController {
     }
   }
 
-  // ── POST /api/auth/refresh ────────────────────────────────────────────────
+  // POST /api/auth/refresh
   static async refreshToken(req, res) {
     try {
       const newToken = AuthController.generateToken(req.user.userId);
-      return res.json({
-        success: true,
-        message: 'Token refreshed successfully',
-        token: newToken,
-      });
+      res.cookie(COOKIE_NAME, newToken, cookieOptions());
+      return res.json({ success: true, message: 'Token refreshed successfully' });
     } catch (error) {
       console.error('Refresh token error:', error);
       return res.status(500).json({

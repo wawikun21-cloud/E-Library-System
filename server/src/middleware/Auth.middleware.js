@@ -1,38 +1,24 @@
-/**
- * Authentication Middleware
- * Verifies JWT tokens and attaches user data to request
- * 
- * Usage:
- *   const { authenticate } = require('../middleware/auth.middleware');
- *   router.get('/protected', authenticate, controller.method);
- */
-
-const jwt = require('jsonwebtoken');
+const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
 
-/**
- * Verify JWT token and authenticate user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
- */
+const COOKIE_NAME = 'lexora_token';
+
+// ── authenticate ──────────────────────────────────────────────────────────────
+// F-05 FIX: reads JWT from httpOnly cookie instead of Authorization header
 const authenticate = async (req, res, next) => {
   try {
-    // 1. Extract token from Authorization header
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // 1. Extract token from httpOnly cookie
+    const token = req.cookies?.[COOKIE_NAME];
+
+    if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Access denied. No token provided.',
-        code: 'NO_TOKEN'
+        message: 'Access denied. No session found. Please login.',
+        code: 'NO_TOKEN',
       });
     }
 
-    // Extract token (remove 'Bearer ' prefix)
-    const token = authHeader.substring(7);
-
-    // 2. Verify token
+    // 2. Verify token signature and expiry
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -40,103 +26,78 @@ const authenticate = async (req, res, next) => {
       if (jwtError.name === 'TokenExpiredError') {
         return res.status(401).json({
           success: false,
-          message: 'Token has expired. Please login again.',
-          code: 'TOKEN_EXPIRED'
+          message: 'Session expired. Please login again.',
+          code: 'TOKEN_EXPIRED',
         });
       }
-      
       if (jwtError.name === 'JsonWebTokenError') {
         return res.status(401).json({
           success: false,
-          message: 'Invalid token. Please login again.',
-          code: 'INVALID_TOKEN'
+          message: 'Invalid session. Please login again.',
+          code: 'INVALID_TOKEN',
         });
       }
-
-      throw jwtError; // Re-throw unexpected errors
+      throw jwtError;
     }
 
-    // 3. Verify user still exists and is active
+    // 3. Verify user still exists and is active in the database
     const user = await User.findById(decoded.userId);
-    
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'User no longer exists or is inactive.',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
       });
     }
 
-    // 4. Attach user data to request object
+    // 4. Attach safe user data to request — role sourced from DB, not token
     req.user = {
-      userId: user.user_id,
+      userId:   user.user_id,
       username: user.username,
       fullName: user.full_name,
-      email: user.email,
-      role: user.role
+      email:    user.email,
+      role:     user.role,
     };
 
-    // 5. Continue to next middleware/controller
     next();
-
   } catch (error) {
-    console.error('❌ Authentication middleware error:', error);
-    
-    // Don't expose internal errors to client
+    console.error('Authentication middleware error:', error);
     return res.status(500).json({
       success: false,
       message: 'Authentication failed. Please try again.',
-      code: 'AUTH_ERROR'
+      code: 'AUTH_ERROR',
     });
   }
 };
 
-/**
- * Optional authentication - continues even if no token
- * Useful for routes that work with or without authentication
- */
+// ── optionalAuth ──────────────────────────────────────────────────────────────
+// Continues even if no cookie — used for public routes that show extra data when logged in
 const optionalAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // No token provided, continue without user data
+    const token = req.cookies?.[COOKIE_NAME];
+
+    if (!token) {
       req.user = null;
       return next();
     }
 
-    const token = authHeader.substring(7);
-    
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId);
-      
-      if (user) {
-        req.user = {
-          userId: user.user_id,
-          username: user.username,
-          fullName: user.full_name,
-          email: user.email,
-          role: user.role
-        };
-      } else {
-        req.user = null;
-      }
-    } catch (jwtError) {
-      // Invalid token, continue without user data
+      const user    = await User.findById(decoded.userId);
+      req.user = user
+        ? { userId: user.user_id, username: user.username,
+            fullName: user.full_name, email: user.email, role: user.role }
+        : null;
+    } catch {
       req.user = null;
     }
 
     next();
-
   } catch (error) {
-    console.error('❌ Optional auth middleware error:', error);
+    console.error('Optional auth middleware error:', error);
     req.user = null;
-    next(); // Continue even if error
+    next();
   }
 };
 
-module.exports = {
-  authenticate,
-  optionalAuth
-};
+module.exports = { authenticate, optionalAuth };
