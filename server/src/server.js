@@ -127,10 +127,11 @@ app.use(cors({
 }));
 
 // ============================================
-// BODY PARSERS — F-11: 50kb limit
+// BODY PARSERS — UPDATED: 2MB limit for base64 images
+// Security: Still enforced at parser level, validated in controllers
 // ============================================
-app.use(express.json({ limit: '50kb' }));
-app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // ============================================
 // ROUTES
@@ -173,6 +174,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Cookies : enabled (httpOnly JWT)`);
   console.log(`  Limiter : enabled (login: 10/15min, global: 200/15min)`);
   console.log(`  Logging : enabled (Winston + Morgan → logs/)`);
+  console.log(`  Body    : 2MB limit (for base64 images)`);
   console.log(`  JWT     : ${process.env.JWT_SECRET ? 'loaded' : 'MISSING'}`);
   console.log('─────────────────────────────────────────');
 });

@@ -165,7 +165,55 @@ class BookController {
     }
   }
 
-  // Create new book - IMPROVED
+  // Validate cover image (base64 or URL) - SECURITY CHECK
+  static validateCoverImage(cover_image) {
+    if (!cover_image) return { valid: true }; // Optional field
+
+    // Accept base64 images (from frontend compression)
+    if (cover_image.startsWith('data:image/')) {
+      // Validate image type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      const typeMatch = cover_image.match(/^data:(image\/[a-z]+);base64,/);
+      
+      if (!typeMatch || !validTypes.includes(typeMatch[1])) {
+        return { 
+          valid: false, 
+          message: 'Invalid image type. Only JPEG, PNG, WEBP, and GIF are allowed.' 
+        };
+      }
+
+      // Check base64 size (rough calculation)
+      const base64Size = cover_image.length;
+      const actualSizeMB = (base64Size * 0.75) / (1024 * 1024); // Convert to MB
+
+      if (actualSizeMB > 1.8) { // 1.8MB limit (accounting for base64 overhead)
+        return { 
+          valid: false, 
+          message: `Image size (${actualSizeMB.toFixed(2)}MB) exceeds 1.8MB limit. Please compress the image.` 
+        };
+      }
+
+      return { valid: true };
+    }
+
+    // Accept HTTPS URLs (from external sources)
+    if (cover_image.startsWith('https://')) {
+      try {
+        new URL(cover_image); // Validate URL format
+        return { valid: true };
+      } catch (err) {
+        return { valid: false, message: 'Invalid image URL format.' };
+      }
+    }
+
+    // Reject anything else (security)
+    return { 
+      valid: false, 
+      message: 'Cover image must be a base64 data URI or HTTPS URL.' 
+    };
+  }
+
+  // Create new book - WITH IMAGE VALIDATION
   static async createBook(req, res) {
     try {
       const {
@@ -186,6 +234,15 @@ class BookController {
         return res.status(400).json({
           success: false,
           message: 'Title, author, and ISBN are required'
+        });
+      }
+
+      // SECURITY: Validate cover image (base64 or URL)
+      const imageValidation = BookController.validateCoverImage(cover_image);
+      if (!imageValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: imageValidation.message
         });
       }
 
@@ -256,7 +313,7 @@ class BookController {
     }
   }
 
-  // Update book
+  // Update book - WITH IMAGE VALIDATION
   static async updateBook(req, res) {
     try {
       const { id } = req.params;
@@ -278,6 +335,15 @@ class BookController {
         return res.status(400).json({
           success: false,
           message: 'Title, author, and ISBN are required'
+        });
+      }
+
+      // SECURITY: Validate cover image (base64 or URL)
+      const imageValidation = BookController.validateCoverImage(cover_image);
+      if (!imageValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: imageValidation.message
         });
       }
 

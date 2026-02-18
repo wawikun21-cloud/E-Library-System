@@ -29,7 +29,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card'
-import { bookService } from '@/services/api'
+import { bookService, transactionService } from '@/services/api'
 import QRCodeScanner from '@/components/common/QRCodeScanner'
 import {
     DropdownMenu,
@@ -166,15 +166,42 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
       loadBooks()
     }, [])
 
+    // Auto-refresh books every 30 seconds to sync with borrow/return operations
+    useEffect(() => {
+      const interval = setInterval(() => {
+        loadBooks()
+      }, 30000) // 30 seconds
+
+      return () => clearInterval(interval)
+    }, [])
+
+    // Force refresh when page becomes visible (user returns to tab)
+    useEffect(() => {
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          loadBooks()
+        }
+      }
+
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [])
+
     const loadBooks = async () => {
       try {
-        setIsLoading(true)
+        // Only show loading indicator on initial load
+        if (books.length === 0) {
+          setIsLoading(true)
+        }
         const response = await bookService.getAll()
         if (response.success) {
           setBooks(response.data)
         }
       } catch (err: any) {
-        toast.error(err.message || 'Failed to load books')
+        // Only show error toast on initial load, silent fail on background refresh
+        if (books.length === 0) {
+          toast.error(err.message || 'Failed to load books')
+        }
       } finally {
         setIsLoading(false)
       }
@@ -217,16 +244,64 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
 
         const reader = new FileReader()
         reader.onloadend = () => {
-          const base64String = reader.result as string
-          setFormData(prev => ({ ...prev, cover_image: base64String }))
-          setPreviewImage(base64String)
+          const img = new Image()
+          img.onload = () => {
+            // Compress and resize image to fit under 50KB for server limit
+            const canvas = document.createElement('canvas')
+            let width = img.width
+            let height = img.height
+            
+            // Resize if too large (max 800px width/height)
+            const maxDimension = 800
+            if (width > maxDimension || height > maxDimension) {
+              if (width > height) {
+                height = (height / width) * maxDimension
+                width = maxDimension
+              } else {
+                width = (width / height) * maxDimension
+                height = maxDimension
+              }
+            }
+            
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            ctx?.drawImage(img, 0, 0, width, height)
+            
+            // Start with quality 0.8 and reduce if still too large
+            let quality = 0.8
+            let compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+            
+            // Keep reducing quality until under 50KB (base64 is ~1.37x actual size)
+            while (compressedDataUrl.length > 45000 && quality > 0.1) {
+              quality -= 0.1
+              compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+            }
+            
+            // Final check - if still too large, resize further
+            if (compressedDataUrl.length > 45000) {
+              width = width * 0.7
+              height = height * 0.7
+              canvas.width = width
+              canvas.height = height
+              ctx?.drawImage(img, 0, 0, width, height)
+              compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7)
+            }
+            
+            setFormData({ ...formData, cover_image: compressedDataUrl })
+            setPreviewImage(compressedDataUrl)
+          }
+          img.onerror = () => {
+            toast.error('Failed to load image')
+          }
+          img.src = reader.result as string
         }
         reader.readAsDataURL(file)
       }
     }
 
     const removeImage = () => {
-      setFormData(prev => ({ ...prev, cover_image: '' }))
+      setFormData({ ...formData, cover_image: '' })
       setPreviewImage('')
     }
 
@@ -246,8 +321,8 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
           const bookData = response.data
           
           // Auto-fill form with fetched data
-          setFormData(prev => ({
-            ...prev,
+          setFormData({
+            ...formData,
             title: bookData.title || '',
             author: bookData.authors || '',
             isbn: isbn,
@@ -255,7 +330,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
             published_year: bookData.publishedDate ? bookData.publishedDate.substring(0, 4) : '',
             description: bookData.description || '',
             cover_image: bookData.thumbnail || '',
-          }))
+          })
           
           // Set preview image if available
           if (bookData.thumbnail) {
@@ -265,13 +340,13 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
           toast.success('Book information loaded successfully!')
         } else {
           // No book found - just set ISBN
-          setFormData(prev => ({ ...prev, isbn }))
+          setFormData({ ...formData, isbn })
           toast.warning('Book not found. Please fill in the details manually.')
         }
       } catch (error: any) {
         console.error('ISBN fetch error:', error)
         // On error, just set the ISBN and let user fill manually
-        setFormData(prev => ({ ...prev, isbn }))
+        setFormData({ ...formData, isbn })
         toast.error(error.message || 'Failed to fetch book details. Please fill manually.')
       } finally {
         setIsFetchingISBN(false)
@@ -348,31 +423,40 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
     const handleDelete = async () => {
       if (!deleteBook) return
 
-      const bookToDelete = deleteBook // capture before any state changes
       setIsDeleting(true)
       try {
-        const response = await bookService.delete(bookToDelete.book_id)
+        // Pre-check: see if this book has any transaction records
+        // The server returns 500 on FK constraint if transactions exist
+        let hasTxns = false
+        try {
+          const txnRes = await transactionService.getAll()
+          if (txnRes.success && Array.isArray(txnRes.data)) {
+            hasTxns = txnRes.data.some(
+              (t: any) => t.book_id === deleteBook.book_id
+            )
+          }
+        } catch {
+          // If transactions endpoint fails, proceed with delete attempt
+        }
+
+        if (hasTxns) {
+          toast.error(
+            `"${deleteBook.title}" cannot be deleted — it has borrowing history. ` +
+            `Remove all related transactions first.`,
+            { autoClose: 5000 }
+          )
+          setDeleteBook(null)
+          setIsDeleting(false)
+          return
+        }
+
+        const response = await bookService.delete(deleteBook.book_id)
         if (response.success) {
-          toast.success(`"${bookToDelete.title}" deleted successfully!`)
+          toast.success(`"${deleteBook.title}" deleted successfully!`)
           setDeleteBook(null)
           await loadBooks()
         } else {
-          // Server returned a non-success response (e.g. FK constraint message from backend)
-          const msg: string = response.message || ''
-          if (
-            msg.toLowerCase().includes('foreign') ||
-            msg.toLowerCase().includes('constraint') ||
-            msg.toLowerCase().includes('transaction') ||
-            msg.toLowerCase().includes('borrow') ||
-            msg.toLowerCase().includes('referenced')
-          ) {
-            toast.error(
-              `"${bookToDelete.title}" cannot be deleted — it has borrowing history. Remove all related transactions first.`,
-              { autoClose: 6000 }
-            )
-          } else {
-            toast.error(msg || 'Failed to delete book')
-          }
+          toast.error(response.message || 'Failed to delete book')
           setDeleteBook(null)
         }
       } catch (err: any) {
@@ -381,12 +465,11 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
           msg.toLowerCase().includes('foreign') ||
           msg.toLowerCase().includes('constraint') ||
           msg.toLowerCase().includes('transaction') ||
-          msg.toLowerCase().includes('borrow') ||
-          msg.toLowerCase().includes('referenced')
+          msg.toLowerCase().includes('borrow')
         ) {
           toast.error(
-            `"${bookToDelete.title}" cannot be deleted — it has borrowing history. Remove all related transactions first.`,
-            { autoClose: 6000 }
+            `"${deleteBook.title}" cannot be deleted — it has borrowing history.`,
+            { autoClose: 5000 }
           )
         } else {
           toast.error(msg || 'Failed to delete book')
@@ -632,7 +715,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
           {/* Header Section with Gradient */}
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-            <h1 className="text-3xl font-bold tracking-tight">Books</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Borrowed Books</h1>
             <p className="text-muted-foreground mt-1">Manage your book collection - {books.length} {books.length === 1 ? 'book' : 'books'} in total</p>
           </div>
             <DropdownMenu>
@@ -1121,7 +1204,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
                       handleEdit(viewingBook)
                       setViewingBook(null)
                     }}
-                    className="text-white flex-1 gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+                    className="text-[#fffff] flex-1 gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
                   >
                     <Pencil className="h-4 w-4" />
                     Edit Book
@@ -1333,7 +1416,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
                 </Button>
                 <Button 
                   type="submit"
-                  className="text-white gap-2 h-10 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg"
+                  className="text-[#fffff] gap-2 h-10 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg"
                   disabled={isSaving || isFetchingISBN}
                 >
                   {isSaving ? (
@@ -1362,7 +1445,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
         )}
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={!!deleteBook} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteBook(null) }}>
+        <AlertDialog open={!!deleteBook} onOpenChange={(open) => !open && setDeleteBook(null)}>
           <AlertDialogContent className="sm:max-w-[450px]">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-xl font-bold">Are you absolutely sure?</AlertDialogTitle>
@@ -1379,7 +1462,7 @@ export default function BooksPage({ user: _user }: BooksPageProps) {
                 className="bg-red-600 text-white hover:bg-red-700 h-10 shadow-lg disabled:opacity-60"
               >
                 {isDeleting
-                  ? <><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Deleting...</>
+                  ? <><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Checking...</>
                   : 'Delete Book'
                 }
               </AlertDialogAction>
