@@ -83,7 +83,7 @@ class TransactionController {
         });
       }
 
-      const userId = req.body.userId || null;
+      const userId = req.user?.userId || null;
 
       const transactionId = await Transaction.create({
         book_id,
@@ -128,7 +128,7 @@ class TransactionController {
   static async returnBook(req, res) {
     try {
       const { id } = req.params;
-      const userId = req.body.userId || null;
+      const userId = req.user?.userId || null;
 
       await Transaction.returnBook(id, userId);
 
@@ -164,7 +164,7 @@ class TransactionController {
   static async undoReturn(req, res) {
     try {
       const { id } = req.params;
-      const userId = req.body.userId || null;
+      const userId = req.user?.userId || null;
 
       await Transaction.undoReturn(id, userId);
 
@@ -208,7 +208,7 @@ class TransactionController {
     try {
       const { id } = req.params;
       const { days } = req.body;
-      const userId = req.body.userId || null;
+      const userId = req.user?.userId || null;
 
       if (!days || days <= 0) {
         return res.status(400).json({

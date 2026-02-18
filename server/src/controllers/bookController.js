@@ -198,8 +198,8 @@ class BookController {
         });
       }
 
-      // Get user ID from request
-      const userId = req.body.userId || null;
+      // Get user ID from authenticated user (set by authenticate middleware)
+      const userId = req.user?.userId || null;
 
       // Create the book
       const bookId = await Book.create({
@@ -301,8 +301,8 @@ class BookController {
         }
       }
 
-      // Get user ID
-      const userId = req.body.userId || null;
+      // Get user ID from authenticated user (set by authenticate middleware)
+      const userId = req.user?.userId || null;
 
       await Book.update(id, {
         title,
@@ -346,7 +346,10 @@ class BookController {
   static async deleteBook(req, res) {
     try {
       const { id } = req.params;
-      const userId = req.body.userId || null;
+      // Get user ID from authenticated user (set by authenticate middleware).
+      // Do NOT use req.body here — DELETE requests have no body, so express.json()
+      // may leave req.body undefined, causing "Cannot read properties of undefined".
+      const userId = req.user?.userId || null;
 
       await Book.delete(id, userId);
 

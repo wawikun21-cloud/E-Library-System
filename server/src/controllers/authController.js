@@ -1,36 +1,18 @@
-const jwt            = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const User           = require('../models/User');
-const TokenBlacklist = require('../models/TokenBlacklist');
-
-const COOKIE_NAME = 'lexora_token';
-
-const cookieOptions = () => ({
-  httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  maxAge:   parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
-  path:     '/',
-});
-
-function parseDuration(str) {
-  const units = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  const match  = String(str).match(/^(\d+)([smhd])$/);
-  return match ? parseInt(match[1]) * (units[match[2]] || 3600000) : 86400000;
-}
+const jwt  = require('jsonwebtoken');
+const User = require('../models/User');
 
 class AuthController {
 
-  // F-10 FIX: include jti (JWT ID) in every token so it can be blacklisted
+  // ── Generate JWT token ────────────────────────────────────────────────────
   static generateToken(userId) {
     return jwt.sign(
-      { userId, jti: uuidv4() },
+      { userId },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
   }
 
-  // POST /api/auth/login
+  // ── POST /api/auth/login ──────────────────────────────────────────────────
   static async login(req, res) {
     try {
       const { username, password } = req.body;
@@ -43,7 +25,9 @@ class AuthController {
         });
       }
 
+      // verifyCredentials() now uses bcrypt.compare() internally
       const user = await User.verifyCredentials(username, password);
+
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -58,11 +42,20 @@ class AuthController {
       const ipAddress = req.ip || req.connection.remoteAddress;
       await User.logActivity(user.user_id, 'LOGIN', 'User logged in', ipAddress);
 
-      res.cookie(COOKIE_NAME, token, cookieOptions());
+      // F-05: Set JWT as httpOnly cookie so the browser sends it automatically.
+      // js-inaccessible → immune to XSS token theft.
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: isProduction,          // HTTPS only in production
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000,  // 24 hours (matches JWT_EXPIRES_IN)
+      });
 
       return res.json({
         success: true,
         message: 'Login successful',
+        token,                         // still returned for API clients / backwards compat
         user: {
           user_id:    user.user_id,
           username:   user.username,
@@ -82,31 +75,18 @@ class AuthController {
     }
   }
 
-  // POST /api/auth/logout
-  // F-10 FIX: blacklists the current token JTI so it can't be reused
+  // ── POST /api/auth/logout ─────────────────────────────────────────────────
   static async logout(req, res) {
     try {
-      if (req.user && req.tokenJti) {
-        // Blacklist the current token
-        const expiresAt = new Date(req.tokenExp * 1000); // tokenExp set by middleware
-        await TokenBlacklist.add(req.tokenJti, req.user.userId, expiresAt);
-
+      if (req.user) {
         const ipAddress = req.ip || req.connection.remoteAddress;
         await User.logActivity(req.user.userId, 'LOGOUT', 'User logged out', ipAddress);
       }
-
-      res.clearCookie(COOKIE_NAME, {
-        httpOnly: true,
-        secure:   process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        path:     '/',
-      });
-
+      // F-05: Clear the httpOnly cookie on logout
+      res.clearCookie('auth_token', { httpOnly: true, sameSite: 'lax' });
       return res.json({ success: true, message: 'Logout successful' });
     } catch (error) {
       console.error('Logout error:', error);
-      // Still clear the cookie even if blacklist fails
-      res.clearCookie(COOKIE_NAME, { httpOnly: true, path: '/' });
       return res.status(500).json({
         success: false,
         message: 'An error occurred during logout',
@@ -115,7 +95,7 @@ class AuthController {
     }
   }
 
-  // GET /api/auth/me
+  // ── GET /api/auth/me ──────────────────────────────────────────────────────
   static async getCurrentUser(req, res) {
     try {
       const user = await User.findById(req.user.userId);
@@ -147,7 +127,7 @@ class AuthController {
     }
   }
 
-  // POST /api/auth/verify
+  // ── POST /api/auth/verify ─────────────────────────────────────────────────
   static async verifySession(req, res) {
     try {
       const user = await User.findById(req.user.userId);
@@ -181,7 +161,7 @@ class AuthController {
     }
   }
 
-  // PUT /api/auth/profile
+  // ── PUT /api/auth/profile ─────────────────────────────────────────────────
   static async updateProfile(req, res) {
     try {
       const { fullName, username } = req.body;
@@ -232,7 +212,9 @@ class AuthController {
     }
   }
 
-  // PUT /api/auth/password
+  // ── PUT /api/auth/password ────────────────────────────────────────────────
+  // F-01 FIX: uses User.verifyPassword() (bcrypt.compare) instead of === 
+  // F-07 FIX: minimum password length raised to 12 characters
   static async updatePassword(req, res) {
     try {
       const { currentPassword, newPassword } = req.body;
@@ -246,6 +228,7 @@ class AuthController {
         });
       }
 
+      // F-07: enforce minimum 12 characters
       if (newPassword.length < 12) {
         return res.status(400).json({
           success: false,
@@ -254,6 +237,7 @@ class AuthController {
         });
       }
 
+      // F-07: enforce maximum 128 characters (bcrypt silently truncates at 72 bytes)
       if (newPassword.length > 128) {
         return res.status(400).json({
           success: false,
@@ -262,6 +246,7 @@ class AuthController {
         });
       }
 
+      // F-01 FIX: use bcrypt.compare via User.verifyPassword()
       const isMatch = await User.verifyPassword(userId, currentPassword);
       if (!isMatch) {
         return res.status(401).json({
@@ -271,24 +256,13 @@ class AuthController {
         });
       }
 
+      // updatePassword() now hashes before storing
       await User.updatePassword(userId, newPassword);
-
-      // F-10: blacklist the current token so user must log in fresh
-      if (req.tokenJti) {
-        const expiresAt = new Date(req.tokenExp * 1000);
-        await TokenBlacklist.add(req.tokenJti, userId, expiresAt);
-      }
 
       const ipAddress = req.ip || req.connection.remoteAddress;
       await User.logActivity(userId, 'PASSWORD_CHANGE', 'Password changed', ipAddress);
 
-      // Clear the cookie — user must login again with new password
-      res.clearCookie(COOKIE_NAME, { httpOnly: true, path: '/' });
-
-      return res.json({
-        success: true,
-        message: 'Password updated successfully. Please login again with your new password.',
-      });
+      return res.json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
       console.error('Update password error:', error);
       return res.status(500).json({
@@ -299,21 +273,23 @@ class AuthController {
     }
   }
 
-  // POST /api/auth/refresh
-  // F-10 FIX: blacklists old token before issuing new one
+  // ── POST /api/auth/refresh ────────────────────────────────────────────────
   static async refreshToken(req, res) {
     try {
-      // Blacklist the old token
-      if (req.tokenJti) {
-        const expiresAt = new Date(req.tokenExp * 1000);
-        await TokenBlacklist.add(req.tokenJti, req.user.userId, expiresAt);
-      }
-
-      // Issue new token with fresh JTI
       const newToken = AuthController.generateToken(req.user.userId);
-      res.cookie(COOKIE_NAME, newToken, cookieOptions());
-
-      return res.json({ success: true, message: 'Token refreshed successfully' });
+      // F-05: Refresh the httpOnly cookie as well
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('auth_token', newToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+      return res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        token: newToken,
+      });
     } catch (error) {
       console.error('Refresh token error:', error);
       return res.status(500).json({

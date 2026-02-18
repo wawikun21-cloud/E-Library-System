@@ -1,15 +1,15 @@
-  import { useState, useEffect } from 'react'
-  import { Search, Plus, Pencil, Trash2, BookOpen, Upload, X, Loader2, Filter, Eye, Calendar, MapPin, Building2, Hash, CheckCircle2, Copy, FolderOpen, ScanLine, ChevronDown } from 'lucide-react'
-  import { toast } from 'react-toastify'
-  import {
+import { useState, useEffect } from 'react'
+import { Search, Plus, Pencil, Trash2, BookOpen, Upload, X, Loader2, Filter, Calendar, MapPin, Building2, Hash, CheckCircle2, Copy, FolderOpen, ScanLine, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { toast } from 'react-toastify'
+import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
-  } from '@/components/ui/dialog'
-  import {
+} from '@/components/ui/dialog'
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -18,41 +18,40 @@
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-  } from '@/components/ui/alert-dialog'
-  import { Button } from '@/components/ui/button'
-  import { Input } from '@/components/ui/input'
-  import { Label } from '@/components/ui/label'
-  import { Badge } from '@/components/ui/badge'
-  import {
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
     Card,
     CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
-  } from '@/components/ui/card'
-  import { bookService } from '@/services/api'
-  import QRCodeScanner from '@/components/common/QRCodeScanner'
-  import {
+} from '@/components/ui/card'
+import { bookService } from '@/services/api'
+import QRCodeScanner from '@/components/common/QRCodeScanner'
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-  } from '@/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu'
 
-  interface UserData {
+interface UserData {
     user_id: number;
     username: string;
     full_name: string;
     email: string;
     role: string;
     last_login: string | null;
-  }
+}
 
-  interface BooksPageProps {
+interface BooksPageProps {
     user?: UserData | null;
-  }
+}
 
-  interface Book {
+interface Book {
     book_id: number
     title: string
     author: string
@@ -65,9 +64,68 @@
     published_year?: number
     description?: string
     location?: string
-  }
+}
 
-  export default function BooksPage({ user: _user }: BooksPageProps) {
+// ── Pagination Component ────────────────────────────────────────────────
+interface PaginationProps {
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    itemsPerPage: number
+    onPageChange: (page: number) => void
+    onItemsPerPageChange: (n: number) => void
+}
+
+function Pagination({ currentPage, totalPages, totalItems, itemsPerPage, onPageChange, onItemsPerPageChange }: PaginationProps) {
+    const from = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1
+    const to   = Math.min(currentPage * itemsPerPage, totalItems)
+    const pages: (number | '…')[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (currentPage > 3) pages.push('…')
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i)
+      if (currentPage < totalPages - 2) pages.push('…')
+      pages.push(totalPages)
+    }
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span>{totalItems === 0 ? 'No results' : `${from}–${to} of ${totalItems} books`}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs">Per page:</span>
+            <select
+              value={itemsPerPage}
+              onChange={e => { onItemsPerPageChange(Number(e.target.value)); onPageChange(1) }}
+              className="h-7 px-2 text-xs rounded-md border border-input bg-background cursor-pointer"
+            >
+              {[12, 24, 48, 96].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(1)} disabled={currentPage === 1}><ChevronsLeft className="h-3.5 w-3.5" /></Button>
+            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+            {pages.map((p, i) =>
+              p === '…' ? (
+                <span key={`e-${i}`} className="px-1 text-muted-foreground text-sm">…</span>
+              ) : (
+                <Button key={p} variant={p === currentPage ? 'default' : 'outline'} size="icon"
+                  className={`h-7 w-7 text-xs ${p === currentPage ? 'bg-gradient-to-r from-[#9770FF] to-[#0033FF] text-white border-0' : ''}`}
+                  onClick={() => onPageChange(p as number)}>{p}</Button>
+              )
+            )}
+            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-3.5 w-3.5" /></Button>
+            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages}><ChevronsRight className="h-3.5 w-3.5" /></Button>
+          </div>
+        )}
+      </div>
+    )
+}
+
+export default function BooksPage({ user: _user }: BooksPageProps) {
     const [books, setBooks] = useState<Book[]>([])
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [editingBook, setEditingBook] = useState<Book | null>(null)
@@ -76,6 +134,7 @@
     const [searchQuery, setSearchQuery] = useState('')
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     
     // QR Scanner states
     const [showScanner, setShowScanner] = useState(false)
@@ -85,6 +144,8 @@
     const [selectedCategory, setSelectedCategory] = useState<string>('all')
     const [availabilityFilter, setAvailabilityFilter] = useState<string>('all')
     const [showFilters, setShowFilters] = useState(true)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState(24)
     
     const [formData, setFormData] = useState({
       title: '',
@@ -157,7 +218,7 @@
         const reader = new FileReader()
         reader.onloadend = () => {
           const base64String = reader.result as string
-          setFormData({ ...formData, cover_image: base64String })
+          setFormData(prev => ({ ...prev, cover_image: base64String }))
           setPreviewImage(base64String)
         }
         reader.readAsDataURL(file)
@@ -165,7 +226,7 @@
     }
 
     const removeImage = () => {
-      setFormData({ ...formData, cover_image: '' })
+      setFormData(prev => ({ ...prev, cover_image: '' }))
       setPreviewImage('')
     }
 
@@ -185,8 +246,8 @@
           const bookData = response.data
           
           // Auto-fill form with fetched data
-          setFormData({
-            ...formData,
+          setFormData(prev => ({
+            ...prev,
             title: bookData.title || '',
             author: bookData.authors || '',
             isbn: isbn,
@@ -194,7 +255,7 @@
             published_year: bookData.publishedDate ? bookData.publishedDate.substring(0, 4) : '',
             description: bookData.description || '',
             cover_image: bookData.thumbnail || '',
-          })
+          }))
           
           // Set preview image if available
           if (bookData.thumbnail) {
@@ -204,13 +265,13 @@
           toast.success('Book information loaded successfully!')
         } else {
           // No book found - just set ISBN
-          setFormData({ ...formData, isbn })
+          setFormData(prev => ({ ...prev, isbn }))
           toast.warning('Book not found. Please fill in the details manually.')
         }
       } catch (error: any) {
         console.error('ISBN fetch error:', error)
         // On error, just set the ISBN and let user fill manually
-        setFormData({ ...formData, isbn })
+        setFormData(prev => ({ ...prev, isbn }))
         toast.error(error.message || 'Failed to fetch book details. Please fill manually.')
       } finally {
         setIsFetchingISBN(false)
@@ -287,16 +348,52 @@
     const handleDelete = async () => {
       if (!deleteBook) return
 
+      const bookToDelete = deleteBook // capture before any state changes
+      setIsDeleting(true)
       try {
-        const response = await bookService.delete(deleteBook.book_id)
+        const response = await bookService.delete(bookToDelete.book_id)
         if (response.success) {
-          toast.success('Book deleted successfully!')
-          await loadBooks() // Reload books
+          toast.success(`"${bookToDelete.title}" deleted successfully!`)
+          setDeleteBook(null)
+          await loadBooks()
+        } else {
+          // Server returned a non-success response (e.g. FK constraint message from backend)
+          const msg: string = response.message || ''
+          if (
+            msg.toLowerCase().includes('foreign') ||
+            msg.toLowerCase().includes('constraint') ||
+            msg.toLowerCase().includes('transaction') ||
+            msg.toLowerCase().includes('borrow') ||
+            msg.toLowerCase().includes('referenced')
+          ) {
+            toast.error(
+              `"${bookToDelete.title}" cannot be deleted — it has borrowing history. Remove all related transactions first.`,
+              { autoClose: 6000 }
+            )
+          } else {
+            toast.error(msg || 'Failed to delete book')
+          }
           setDeleteBook(null)
         }
       } catch (err: any) {
-        toast.error(err.message || 'Failed to delete book')
+        const msg: string = err?.message || ''
+        if (
+          msg.toLowerCase().includes('foreign') ||
+          msg.toLowerCase().includes('constraint') ||
+          msg.toLowerCase().includes('transaction') ||
+          msg.toLowerCase().includes('borrow') ||
+          msg.toLowerCase().includes('referenced')
+        ) {
+          toast.error(
+            `"${bookToDelete.title}" cannot be deleted — it has borrowing history. Remove all related transactions first.`,
+            { autoClose: 6000 }
+          )
+        } else {
+          toast.error(msg || 'Failed to delete book')
+        }
         setDeleteBook(null)
+      } finally {
+        setIsDeleting(false)
       }
     }
 
@@ -343,11 +440,17 @@
       return matchesSearch && matchesCategory && matchesAvailability
     })
 
+    // Pagination derived values
+    const totalPages = Math.max(1, Math.ceil(filteredBooks.length / itemsPerPage))
+    const safePage   = Math.min(currentPage, totalPages)
+    const pagedBooks = filteredBooks.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage)
+
     // Clear all filters
     const clearFilters = () => {
       setSelectedCategory('all')
       setAvailabilityFilter('all')
       setSearchQuery('')
+      setCurrentPage(1)
     }
 
     // Calculate stats
@@ -503,12 +606,15 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 50%);
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
             opacity: 0;
             transition: opacity 0.3s ease;
             display: flex;
-            align-items: flex-end;
-            padding: 1rem;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 0.5rem;
+            gap: 0.25rem;
           }
 
           .book-cover-container:hover .book-overlay {
@@ -526,7 +632,7 @@
           {/* Header Section with Gradient */}
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-            <h1 className="text-3xl font-bold tracking-tight">Borrowed Books</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Books</h1>
             <p className="text-muted-foreground mt-1">Manage your book collection - {books.length} {books.length === 1 ? 'book' : 'books'} in total</p>
           </div>
             <DropdownMenu>
@@ -847,89 +953,74 @@
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {filteredBooks.map((book) => (
-              <Card key={book.book_id} className="book-card animate-fade-in hover:shadow-xl transition-all overflow-hidden border-2 hover:border-[#9770FF]/30">
-                {/* Book Cover Image with Hover Zoom and Overlay */}
-                {book.cover_image ? (
-                  <div className="aspect-[3/4] w-full overflow-hidden bg-white book-cover-container cursor-pointer relative" onClick={() => setViewingBook(book)}>
-                    <img 
-                      src={book.cover_image} 
-                      alt={book.title}
-                      className="w-full h-full object-contain p-1 book-cover-image"
-                    />
-                    <div className="book-overlay">
-                      <Button size="sm" variant="secondary" className="text-[#000000] gap-2 bg-white/90 hover:bg-white">
-                        <Eye className="h-3 w-3" />
-                        Quick View
-                      </Button>
+          <div className="space-y-3">
+            {/* Pagination top */}
+            <Pagination
+              currentPage={safePage} totalPages={totalPages}
+              totalItems={filteredBooks.length} itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage} onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1) }}
+            />
+
+            {/* Book Grid - style */}
+            <div className="grid gap-2 grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {pagedBooks.map((book) => (
+                <div key={book.book_id} className="rounded-lg bg-black book-card animate-fade-in cursor-pointer" onClick={() => setViewingBook(book)}>
+                  {/* Poster */}
+                  <div className="relative aspect-[2/3] w-full overflow-hidden bg-[#1a1a2e] book-cover-container">
+                    {book.cover_image ? (
+                      <img
+                        src={book.cover_image}
+                        alt={book.title}
+                        className="w-full h-full object-cover book-cover-image"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#9770FF]/20 to-[#0033FF]/20">
+                        <BookOpen className="h-8 w-8 text-[#9770FF]/60 mb-1" />
+                        <span className="text-[8px] text-[#9770FF]/60 text-center px-2 leading-tight line-clamp-3">{book.title}</span>
+                      </div>
+                    )}
+                    {/* Availability badge on poster */}
+                    <div className="absolute top-1 left-1">
+                      <span className={`text-[8px] font-bold px-1 py-0.5 leading-none ${book.available_quantity > 0 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                        {book.available_quantity > 0 ? `${book.available_quantity} avail` : 'Out'}
+                      </span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="aspect-[3/4] w-full  flex items-center justify-center book-cover-container cursor-pointer" onClick={() => setViewingBook(book)}>
-                    <BookOpen className="h-12 w-12 text-[#9770FF]/40" />
-                    <div className="book-overlay">
-                      <Button size="sm" variant="secondary" className="gap-2 bg-white/90 hover:bg-white">
-                        <Eye className="h-3 w-3" />
-                        Quick View
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                <CardHeader className="p-2.5 pb-1.5">
-                  <div className="space-y-1.5">
-                    <CardTitle className="text-xs line-clamp-2 leading-tight font-semibold hover:text-[#9770FF] transition-colors cursor-pointer" onClick={() => setViewingBook(book)}>
-                      {book.title}
-                    </CardTitle>
-                    <CardDescription className="text-[10px] line-clamp-1 font-medium">
-                      {book.author}
-                    </CardDescription>
-                    <div className="flex flex-wrap gap-1">
-                      <Badge 
-                        variant={book.available_quantity > 5 ? "default" : book.available_quantity > 0 ? "secondary" : "destructive"}
-                        className="text-[9px] px-1.5 py-0 font-semibold"
+                    {/* Hover overlay — Edit + Delete */}
+                    <div className="book-overlay" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="w-4/5 flex items-center justify-center gap-1 h-6 text-[10px] font-semibold bg-white hover:bg-gray-100 text-gray-800 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleEdit(book) }}
                       >
-                        {book.available_quantity} avail
-                      </Badge>
-                      {book.category && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-medium border-[#9770FF]/30 text-[#9770FF]">
-                          {book.category}
-                        </Badge>
-                      )}
+                        <Pencil className="h-2.5 w-2.5" /> Edit
+                      </button>
+                      <button
+                        className="w-4/5 flex items-center justify-center gap-1 h-6 text-[10px] font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setDeleteBook(book) }}
+                      >
+                        <Trash2 className="h-2.5 w-2.5" /> Delete
+                      </button>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="p-2.5 pt-0">
-                  <div className="space-y-1.5">
-                    <div className="text-[10px] text-muted-foreground truncate font-medium">
-                      ISBN: {book.isbn}
+                  {/* Metadata below poster */}
+                  <div className="m-2 pt-1 pb-2 px-0.5">
+                    <div className="flex items-center gap-1 text-[9px] text-muted-foreground mb-0.5 flex-wrap">
+                      <span className="text-[#9770FF] font-bold">★</span>
+                      <span className="font-medium">{book.available_quantity}/{book.quantity}</span>
+                      {book.category && <span className="uppercase tracking-wide font-semibold text-[8px] truncate max-w-[60px]">{book.category}</span>}
                     </div>
-                    
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-1 h-6 text-[10px] hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors font-medium"
-                        onClick={() => handleEdit(book)}
-                      >
-                        <Pencil className="h-2.5 w-2.5" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-1 h-6 text-[10px] text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
-                        onClick={() => setDeleteBook(book)}
-                      >
-                        <Trash2 className="h-2.5 w-2.5" />
-                        Delete
-                      </Button>
-                    </div>
+                    <p className="text-[10px] sm:text-xs font-semibold leading-tight line-clamp-2 text-foreground">{book.title}</p>
+                    <p className="text-[9px] text-muted-foreground truncate mt-0.5">{book.author}</p>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination bottom */}
+            <Pagination
+              currentPage={safePage} totalPages={totalPages}
+              totalItems={filteredBooks.length} itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage} onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1) }}
+            />
           </div>
         )}
 
@@ -1030,7 +1121,7 @@
                       handleEdit(viewingBook)
                       setViewingBook(null)
                     }}
-                    className="text-[#fffff] flex-1 gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
+                    className="text-white flex-1 gap-2 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc]"
                   >
                     <Pencil className="h-4 w-4" />
                     Edit Book
@@ -1242,7 +1333,7 @@
                 </Button>
                 <Button 
                   type="submit"
-                  className="text-[#fffff] gap-2 h-10 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg"
+                  className="text-white gap-2 h-10 bg-gradient-to-r from-[#9770FF] to-[#0033FF] hover:from-[#7c5cd6] hover:to-[#0029cc] shadow-lg"
                   disabled={isSaving || isFetchingISBN}
                 >
                   {isSaving ? (
@@ -1271,7 +1362,7 @@
         )}
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={!!deleteBook} onOpenChange={(open) => !open && setDeleteBook(null)}>
+        <AlertDialog open={!!deleteBook} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteBook(null) }}>
           <AlertDialogContent className="sm:max-w-[450px]">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-xl font-bold">Are you absolutely sure?</AlertDialogTitle>
@@ -1282,16 +1373,20 @@
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="h-10">Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDelete} 
-                className="bg-red-600 text-white hover:bg-red-700 h-10 shadow-lg"
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); handleDelete() }}
+                disabled={isDeleting}
+                className="bg-red-600 text-white hover:bg-red-700 h-10 shadow-lg disabled:opacity-60"
               >
-                Delete Book
+                {isDeleting
+                  ? <><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Deleting...</>
+                  : 'Delete Book'
+                }
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </div>
     </>
-  )
+)
 }
