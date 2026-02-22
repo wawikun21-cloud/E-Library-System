@@ -47,7 +47,7 @@ class BookController {
     }
   }
 
-  // Get book information by ISBN from Google Books API
+  // Get book information by ISBN from Google Books API + Open Library API
   static async getBookByISBN(req, res) {
     try {
       const { isbn } = req.params;
@@ -59,33 +59,69 @@ class BookController {
         });
       }
 
-      console.log('Fetching book info for ISBN:', isbn);
+      console.log('📚 Fetching book info for ISBN:', isbn);
 
-      // Build URL with optional API key
+      // Try both APIs in parallel for faster results
+      const [googleResult, openLibResult] = await Promise.allSettled([
+        BookController.fetchFromGoogleBooks(isbn),
+        BookController.fetchFromOpenLibrary(isbn)
+      ]);
+
+      // Merge data from both sources (prioritize best data)
+      const mergedData = BookController.mergeBookData(
+        googleResult.status === 'fulfilled' ? googleResult.value : null,
+        openLibResult.status === 'fulfilled' ? openLibResult.value : null
+      );
+
+      if (!mergedData) {
+        return res.status(404).json({
+          success: false,
+          message: 'Book not found in Google Books or Open Library',
+          sources_checked: ['Google Books', 'Open Library']
+        });
+      }
+
+      console.log('✅ Book info fetched successfully:', mergedData.title);
+      console.log('📊 Data sources:', mergedData._sources);
+
+      res.json({
+        success: true,
+        data: mergedData
+      });
+    } catch (error) {
+      console.error('❌ Get book by ISBN error:', error.message);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch book information'
+      });
+    }
+  }
+
+  // Fetch from Google Books API
+  static async fetchFromGoogleBooks(isbn) {
+    try {
       const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
       const googleBooksUrl = apiKey 
         ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${apiKey}`
         : `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
       
-      console.log('Using Google Books API:', apiKey ? 'with API key' : 'without API key');
+      console.log('🔍 Searching Google Books...');
 
-      // Call Google Books API
       const response = await axios.get(googleBooksUrl, {
-        timeout: 8000 // 8 second timeout
+        timeout: 8000
       });
 
       if (!response.data.items || response.data.items.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Book not found for this ISBN'
-        });
+        console.log('⚠️ Google Books: No results');
+        return null;
       }
 
-      // Extract book information from the first result
       const bookInfo = response.data.items[0].volumeInfo;
       
-      // Format the data to match our expected structure
-      const formattedData = {
+      console.log('✅ Google Books: Found -', bookInfo.title);
+      
+      return {
         title: bookInfo.title || '',
         authors: bookInfo.authors ? bookInfo.authors.join(', ') : '',
         publisher: bookInfo.publisher || '',
@@ -95,46 +131,136 @@ class BookController {
         categories: bookInfo.categories ? bookInfo.categories.join(', ') : '',
         pageCount: bookInfo.pageCount || null,
         language: bookInfo.language || '',
+        _source: 'Google Books'
       };
-
-      console.log('Book info fetched successfully:', formattedData.title);
-
-      res.json({
-        success: true,
-        data: formattedData
-      });
     } catch (error) {
-      console.error('Get book by ISBN error:', error.message);
+      console.log('⚠️ Google Books error:', error.message);
       
-      // Handle rate limiting (429 error)
+      // Handle rate limiting
       if (error.response && error.response.status === 429) {
-        return res.status(429).json({
-          success: false,
-          message: 'Rate limit exceeded. Please try again later or add a Google Books API key.'
-        });
+        console.log('⚠️ Google Books rate limit exceeded');
       }
       
-      // Handle timeout
-      if (error.code === 'ECONNABORTED') {
-        return res.status(408).json({
-          success: false,
-          message: 'Request timeout. Please try again.'
-        });
-      }
+      return null;
+    }
+  }
+
+  // Fetch from Open Library API
+  static async fetchFromOpenLibrary(isbn) {
+    try {
+      // Open Library ISBN API
+      const openLibUrl = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
       
-      if (error.response) {
-        // Google Books API returned an error
-        return res.status(error.response.status || 500).json({
-          success: false,
-          message: 'Failed to fetch book information from Google Books'
-        });
+      console.log('🔍 Searching Open Library...');
+
+      const response = await axios.get(openLibUrl, {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Lexora-Library/1.0 (Educational Project)'
+        }
+      });
+
+      const bookKey = `ISBN:${isbn}`;
+      const bookData = response.data[bookKey];
+
+      if (!bookData) {
+        console.log('⚠️ Open Library: No results');
+        return null;
       }
 
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch book information'
-      });
+      console.log('✅ Open Library: Found -', bookData.title);
+
+      // Extract authors
+      const authors = bookData.authors 
+        ? bookData.authors.map(a => a.name).join(', ') 
+        : '';
+
+      // Extract publishers
+      const publisher = bookData.publishers 
+        ? bookData.publishers.map(p => p.name).join(', ')
+        : '';
+
+      // Extract subjects/categories
+      const categories = bookData.subjects 
+        ? bookData.subjects.slice(0, 3).map(s => s.name).join(', ')
+        : '';
+
+      // Get best thumbnail (prefer large, fallback to medium/small)
+      let thumbnail = '';
+      if (bookData.cover) {
+        thumbnail = bookData.cover.large || bookData.cover.medium || bookData.cover.small || '';
+      }
+
+      return {
+        title: bookData.title || '',
+        authors: authors,
+        publisher: publisher,
+        publishedDate: bookData.publish_date || '',
+        description: bookData.notes || bookData.subtitle || '',
+        thumbnail: thumbnail,
+        categories: categories,
+        pageCount: bookData.number_of_pages || null,
+        language: '', // Open Library doesn't always provide this
+        _source: 'Open Library'
+      };
+    } catch (error) {
+      console.log('⚠️ Open Library error:', error.message);
+      return null;
     }
+  }
+
+  // Merge data from both sources (intelligent selection)
+  static mergeBookData(googleData, openLibData) {
+    // If both failed, return null
+    if (!googleData && !openLibData) {
+      return null;
+    }
+
+    // If only one source has data, use it
+    if (!googleData) return { ...openLibData, _sources: ['Open Library'] };
+    if (!openLibData) return { ...googleData, _sources: ['Google Books'] };
+
+    // Both sources have data - merge intelligently
+    console.log('🔄 Merging data from both sources...');
+
+    const merged = {
+      // Title: Prefer Google Books (usually more accurate)
+      title: googleData.title || openLibData.title,
+      
+      // Authors: Prefer Google Books
+      authors: googleData.authors || openLibData.authors,
+      
+      // Publisher: Prefer Google Books
+      publisher: googleData.publisher || openLibData.publisher,
+      
+      // Published Date: Prefer Google Books (more consistent format)
+      publishedDate: googleData.publishedDate || openLibData.publishedDate,
+      
+      // Description: Prefer longer/more detailed description
+      description: (googleData.description && googleData.description.length > 100)
+        ? googleData.description
+        : (openLibData.description || googleData.description || ''),
+      
+      // Thumbnail: Prefer Open Library (usually higher quality)
+      // Fallback to Google Books if Open Library has none
+      thumbnail: openLibData.thumbnail || googleData.thumbnail || '',
+      
+      // Categories: Combine both sources for richer data
+      categories: [googleData.categories, openLibData.categories]
+        .filter(Boolean)
+        .join(', ') || '',
+      
+      // Page Count: Prefer whichever has data
+      pageCount: googleData.pageCount || openLibData.pageCount || null,
+      
+      // Language: Google Books only (Open Library often missing)
+      language: googleData.language || '',
+      
+      // Track which sources were used
+      _sources: ['Google Books', 'Open Library']
+    };
+
+    return merged;
   }
 
   // Search books
