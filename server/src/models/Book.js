@@ -1,6 +1,32 @@
 const db = require('../config/database');
 
 class Book {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPER: NORMALIZE ISBN
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Normalize ISBN to consistent format
+   * Removes hyphens, spaces, and non-alphanumeric characters
+   * Preserves 'X' for ISBN-10 check digit
+   * 
+   * @param {string} isbn - Raw ISBN string
+   * @returns {string|null} - Normalized ISBN or null
+   */
+  static normalizeISBN(isbn) {
+    if (!isbn) return null;
+    
+    // Remove all non-alphanumeric except X (for ISBN-10)
+    // Convert to uppercase, trim, limit to 13 chars
+    const normalized = isbn
+      .trim()
+      .toUpperCase()
+      .replace(/[^0-9X]/gi, '')
+      .substring(0, 13);
+    
+    return normalized || null;
+  }
+
   // Get all active books
   static async getAll() {
     try {
@@ -99,7 +125,10 @@ class Book {
     }
   }
 
-  // Create new book - WITH IMPROVED ERROR HANDLING
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: CREATE WITH ISBN NORMALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   static async create(bookData, userId) {
     try {
       const {
@@ -114,6 +143,20 @@ class Book {
         description,
         location
       } = bookData;
+
+      // ═════════════════════════════════════════════════════════════════════
+      // NORMALIZE ISBN before insert
+      // ═════════════════════════════════════════════════════════════════════
+      const normalizedISBN = Book.normalizeISBN(isbn);
+      
+      if (!normalizedISBN) {
+        throw new Error('Invalid ISBN format');
+      }
+
+      console.log('📖 Creating book with normalized ISBN:', {
+        original: isbn,
+        normalized: normalizedISBN
+      });
 
       const [result] = await db.query(
         `INSERT INTO books (
@@ -132,7 +175,7 @@ class Book {
         [
           title,
           author,
-          isbn,
+          normalizedISBN,  // ← Use normalized version
           quantity || 1,
           quantity || 1, // available_quantity starts same as quantity
           cover_image || null,
@@ -166,7 +209,10 @@ class Book {
     }
   }
 
-  // Update book - WITH IMPROVED ERROR HANDLING
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: UPDATE WITH ISBN NORMALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   static async update(bookId, bookData, userId) {
     try {
       const {
@@ -187,6 +233,20 @@ class Book {
       if (!currentBook) {
         throw new Error('Book not found');
       }
+
+      // ═════════════════════════════════════════════════════════════════════
+      // NORMALIZE ISBN before update
+      // ═════════════════════════════════════════════════════════════════════
+      const normalizedISBN = Book.normalizeISBN(isbn);
+      
+      if (!normalizedISBN) {
+        throw new Error('Invalid ISBN format');
+      }
+
+      console.log('📖 Updating book with normalized ISBN:', {
+        original: isbn,
+        normalized: normalizedISBN
+      });
 
       // Calculate new available_quantity
       const quantityDiff = quantity - currentBook.quantity;
@@ -211,7 +271,7 @@ class Book {
         [
           title,
           author,
-          isbn,
+          normalizedISBN,  // ← Use normalized version
           quantity,
           finalAvailable,
           cover_image || null,
@@ -289,11 +349,38 @@ class Book {
     }
   }
 
-  // Check if ISBN already exists
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: ISBN EXISTS CHECK WITH NORMALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Check if ISBN already exists (with normalization)
+   * 
+   * @param {string} isbn - ISBN to check
+   * @param {number} excludeBookId - Book ID to exclude (for updates)
+   * @returns {boolean} - True if exists
+   */
   static async isbnExists(isbn, excludeBookId = null) {
     try {
-      let query = 'SELECT book_id FROM books WHERE isbn = ? AND is_active = 1';
-      let params = [isbn];
+      // ═════════════════════════════════════════════════════════════════════
+      // NORMALIZE ISBN for consistent comparison
+      // ═════════════════════════════════════════════════════════════════════
+      const normalizedISBN = Book.normalizeISBN(isbn);
+      
+      if (!normalizedISBN) {
+        console.warn('⚠️ Invalid ISBN format in isbnExists check:', isbn);
+        return false;
+      }
+
+      // Normalize database ISBNs using REPLACE() for comparison
+      // This handles cases where database has hyphens or spaces
+      let query = `
+        SELECT book_id, isbn, title
+        FROM books 
+        WHERE REPLACE(REPLACE(REPLACE(UPPER(isbn), '-', ''), ' ', ''), '\n', '') = ? 
+          AND is_active = 1
+      `;
+      let params = [normalizedISBN];
 
       if (excludeBookId) {
         query += ' AND book_id != ?';
@@ -301,6 +388,16 @@ class Book {
       }
 
       const [rows] = await db.query(query, params);
+      
+      if (rows.length > 0) {
+        console.log('📖 ISBN exists check:', {
+          searchedISBN: isbn,
+          normalizedISBN: normalizedISBN,
+          foundBook: rows[0].title,
+          foundISBN: rows[0].isbn
+        });
+      }
+      
       return rows.length > 0;
     } catch (error) {
       console.error('Error in isbnExists:', error);

@@ -2,6 +2,53 @@ const Book = require('../models/book');
 const axios = require('axios');
 
 class BookController {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPER: SANITIZE THUMBNAIL URL
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Sanitize and normalize thumbnail URLs
+   * 
+   * @param {string | undefined | null} thumbnail - Raw thumbnail URL or base64
+   * @returns {string | null} - Sanitized URL or null
+   * 
+   * Behavior:
+   * - undefined/null/empty → return null
+   * - http:// URLs → convert to https://
+   * - https:// URLs → allow as-is
+   * - data:image/ base64 → allow as-is
+   * - Invalid formats → return null (don't block, just log warning)
+   */
+  static sanitizeThumbnail(thumbnail) {
+    // Handle empty values
+    if (!thumbnail || thumbnail.trim() === '') {
+      return null;
+    }
+
+    const trimmed = thumbnail.trim();
+
+    // Allow base64 images
+    if (trimmed.startsWith('data:image/')) {
+      return trimmed;
+    }
+
+    // Convert HTTP to HTTPS (Google Books, Open Library often use HTTP)
+    if (trimmed.startsWith('http://')) {
+      const httpsUrl = trimmed.replace('http://', 'https://');
+      console.log(`📸 Auto-converted HTTP to HTTPS: ${trimmed.substring(0, 50)}...`);
+      return httpsUrl;
+    }
+
+    // Allow HTTPS URLs as-is
+    if (trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    // Invalid format - log warning but don't block book creation
+    console.warn(`⚠️ Invalid thumbnail format (ignored): ${trimmed.substring(0, 50)}...`);
+    return null;
+  }
+
   // Get all books
   static async getAllBooks(req, res) {
     try {
@@ -47,7 +94,7 @@ class BookController {
     }
   }
 
-  // Get book information by ISBN from Google Books API + Open Library API
+  // Get book information by ISBN from Google Books API
   static async getBookByISBN(req, res) {
     try {
       const { isbn } = req.params;
@@ -59,69 +106,33 @@ class BookController {
         });
       }
 
-      console.log('📚 Fetching book info for ISBN:', isbn);
+      console.log('Fetching book info for ISBN:', isbn);
 
-      // Try both APIs in parallel for faster results
-      const [googleResult, openLibResult] = await Promise.allSettled([
-        BookController.fetchFromGoogleBooks(isbn),
-        BookController.fetchFromOpenLibrary(isbn)
-      ]);
-
-      // Merge data from both sources (prioritize best data)
-      const mergedData = BookController.mergeBookData(
-        googleResult.status === 'fulfilled' ? googleResult.value : null,
-        openLibResult.status === 'fulfilled' ? openLibResult.value : null
-      );
-
-      if (!mergedData) {
-        return res.status(404).json({
-          success: false,
-          message: 'Book not found in Google Books or Open Library',
-          sources_checked: ['Google Books', 'Open Library']
-        });
-      }
-
-      console.log('✅ Book info fetched successfully:', mergedData.title);
-      console.log('📊 Data sources:', mergedData._sources);
-
-      res.json({
-        success: true,
-        data: mergedData
-      });
-    } catch (error) {
-      console.error('❌ Get book by ISBN error:', error.message);
-      
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch book information'
-      });
-    }
-  }
-
-  // Fetch from Google Books API
-  static async fetchFromGoogleBooks(isbn) {
-    try {
+      // Build URL with optional API key
       const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
       const googleBooksUrl = apiKey 
         ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${apiKey}`
         : `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
       
-      console.log('🔍 Searching Google Books...');
+      console.log('Using Google Books API:', apiKey ? 'with API key' : 'without API key');
 
+      // Call Google Books API
       const response = await axios.get(googleBooksUrl, {
-        timeout: 8000
+        timeout: 8000 // 8 second timeout
       });
 
       if (!response.data.items || response.data.items.length === 0) {
-        console.log('⚠️ Google Books: No results');
-        return null;
+        return res.status(404).json({
+          success: false,
+          message: 'Book not found for this ISBN'
+        });
       }
 
+      // Extract book information from the first result
       const bookInfo = response.data.items[0].volumeInfo;
       
-      console.log('✅ Google Books: Found -', bookInfo.title);
-      
-      return {
+      // Format the data to match our expected structure
+      const formattedData = {
         title: bookInfo.title || '',
         authors: bookInfo.authors ? bookInfo.authors.join(', ') : '',
         publisher: bookInfo.publisher || '',
@@ -131,136 +142,46 @@ class BookController {
         categories: bookInfo.categories ? bookInfo.categories.join(', ') : '',
         pageCount: bookInfo.pageCount || null,
         language: bookInfo.language || '',
-        _source: 'Google Books'
       };
-    } catch (error) {
-      console.log('⚠️ Google Books error:', error.message);
-      
-      // Handle rate limiting
-      if (error.response && error.response.status === 429) {
-        console.log('⚠️ Google Books rate limit exceeded');
-      }
-      
-      return null;
-    }
-  }
 
-  // Fetch from Open Library API
-  static async fetchFromOpenLibrary(isbn) {
-    try {
-      // Open Library ISBN API
-      const openLibUrl = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
-      
-      console.log('🔍 Searching Open Library...');
+      console.log('Book info fetched successfully:', formattedData.title);
 
-      const response = await axios.get(openLibUrl, {
-        timeout: 8000,
-        headers: {
-          'User-Agent': 'Lexora-Library/1.0 (Educational Project)'
-        }
+      res.json({
+        success: true,
+        data: formattedData
       });
-
-      const bookKey = `ISBN:${isbn}`;
-      const bookData = response.data[bookKey];
-
-      if (!bookData) {
-        console.log('⚠️ Open Library: No results');
-        return null;
-      }
-
-      console.log('✅ Open Library: Found -', bookData.title);
-
-      // Extract authors
-      const authors = bookData.authors 
-        ? bookData.authors.map(a => a.name).join(', ') 
-        : '';
-
-      // Extract publishers
-      const publisher = bookData.publishers 
-        ? bookData.publishers.map(p => p.name).join(', ')
-        : '';
-
-      // Extract subjects/categories
-      const categories = bookData.subjects 
-        ? bookData.subjects.slice(0, 3).map(s => s.name).join(', ')
-        : '';
-
-      // Get best thumbnail (prefer large, fallback to medium/small)
-      let thumbnail = '';
-      if (bookData.cover) {
-        thumbnail = bookData.cover.large || bookData.cover.medium || bookData.cover.small || '';
-      }
-
-      return {
-        title: bookData.title || '',
-        authors: authors,
-        publisher: publisher,
-        publishedDate: bookData.publish_date || '',
-        description: bookData.notes || bookData.subtitle || '',
-        thumbnail: thumbnail,
-        categories: categories,
-        pageCount: bookData.number_of_pages || null,
-        language: '', // Open Library doesn't always provide this
-        _source: 'Open Library'
-      };
     } catch (error) {
-      console.log('⚠️ Open Library error:', error.message);
-      return null;
+      console.error('Get book by ISBN error:', error.message);
+      
+      // Handle rate limiting (429 error)
+      if (error.response && error.response.status === 429) {
+        return res.status(429).json({
+          success: false,
+          message: 'Rate limit exceeded. Please try again later or add a Google Books API key.'
+        });
+      }
+      
+      // Handle timeout
+      if (error.code === 'ECONNABORTED') {
+        return res.status(408).json({
+          success: false,
+          message: 'Request timeout. Please try again.'
+        });
+      }
+      
+      if (error.response) {
+        // Google Books API returned an error
+        return res.status(error.response.status || 500).json({
+          success: false,
+          message: 'Failed to fetch book information from Google Books'
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch book information'
+      });
     }
-  }
-
-  // Merge data from both sources (intelligent selection)
-  static mergeBookData(googleData, openLibData) {
-    // If both failed, return null
-    if (!googleData && !openLibData) {
-      return null;
-    }
-
-    // If only one source has data, use it
-    if (!googleData) return { ...openLibData, _sources: ['Open Library'] };
-    if (!openLibData) return { ...googleData, _sources: ['Google Books'] };
-
-    // Both sources have data - merge intelligently
-    console.log('🔄 Merging data from both sources...');
-
-    const merged = {
-      // Title: Prefer Google Books (usually more accurate)
-      title: googleData.title || openLibData.title,
-      
-      // Authors: Prefer Google Books
-      authors: googleData.authors || openLibData.authors,
-      
-      // Publisher: Prefer Google Books
-      publisher: googleData.publisher || openLibData.publisher,
-      
-      // Published Date: Prefer Google Books (more consistent format)
-      publishedDate: googleData.publishedDate || openLibData.publishedDate,
-      
-      // Description: Prefer longer/more detailed description
-      description: (googleData.description && googleData.description.length > 100)
-        ? googleData.description
-        : (openLibData.description || googleData.description || ''),
-      
-      // Thumbnail: Prefer Open Library (usually higher quality)
-      // Fallback to Google Books if Open Library has none
-      thumbnail: openLibData.thumbnail || googleData.thumbnail || '',
-      
-      // Categories: Combine both sources for richer data
-      categories: [googleData.categories, openLibData.categories]
-        .filter(Boolean)
-        .join(', ') || '',
-      
-      // Page Count: Prefer whichever has data
-      pageCount: googleData.pageCount || openLibData.pageCount || null,
-      
-      // Language: Google Books only (Open Library often missing)
-      language: googleData.language || '',
-      
-      // Track which sources were used
-      _sources: ['Google Books', 'Open Library']
-    };
-
-    return merged;
   }
 
   // Search books
@@ -291,9 +212,18 @@ class BookController {
     }
   }
 
-  // Validate cover image (base64 or URL) - SECURITY CHECK
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: SAFE IMAGE VALIDATION (No longer blocking)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * Validate cover image (base64 or URL) - SECURITY CHECK
+   * 
+   * UPDATED: Now accepts both HTTP and HTTPS URLs
+   * Invalid images are converted to null instead of blocking creation
+   */
   static validateCoverImage(cover_image) {
-    if (!cover_image) return { valid: true }; // Optional field
+    if (!cover_image) return { valid: true, sanitized: null }; // Optional field
 
     // Accept base64 images (from frontend compression)
     if (cover_image.startsWith('data:image/')) {
@@ -302,10 +232,8 @@ class BookController {
       const typeMatch = cover_image.match(/^data:(image\/[a-z]+);base64,/);
       
       if (!typeMatch || !validTypes.includes(typeMatch[1])) {
-        return { 
-          valid: false, 
-          message: 'Invalid image type. Only JPEG, PNG, WEBP, and GIF are allowed.' 
-        };
+        console.warn('⚠️ Invalid base64 image type, setting to null');
+        return { valid: true, sanitized: null }; // Don't block, just nullify
       }
 
       // Check base64 size (rough calculation)
@@ -313,33 +241,46 @@ class BookController {
       const actualSizeMB = (base64Size * 0.75) / (1024 * 1024); // Convert to MB
 
       if (actualSizeMB > 1.8) { // 1.8MB limit (accounting for base64 overhead)
-        return { 
-          valid: false, 
-          message: `Image size (${actualSizeMB.toFixed(2)}MB) exceeds 1.8MB limit. Please compress the image.` 
-        };
+        console.warn(`⚠️ Image too large (${actualSizeMB.toFixed(2)}MB), setting to null`);
+        return { valid: true, sanitized: null }; // Don't block, just nullify
       }
 
-      return { valid: true };
+      return { valid: true, sanitized: cover_image };
     }
 
-    // Accept HTTPS URLs (from external sources)
+    // Accept HTTP URLs (auto-convert to HTTPS)
+    if (cover_image.startsWith('http://')) {
+      const httpsUrl = cover_image.replace('http://', 'https://');
+      try {
+        new URL(httpsUrl); // Validate URL format
+        console.log('📸 Auto-converted HTTP to HTTPS');
+        return { valid: true, sanitized: httpsUrl };
+      } catch (err) {
+        console.warn('⚠️ Invalid HTTP URL format, setting to null');
+        return { valid: true, sanitized: null }; // Don't block, just nullify
+      }
+    }
+
+    // Accept HTTPS URLs (from external sources like Google Books API)
     if (cover_image.startsWith('https://')) {
       try {
         new URL(cover_image); // Validate URL format
-        return { valid: true };
+        return { valid: true, sanitized: cover_image };
       } catch (err) {
-        return { valid: false, message: 'Invalid image URL format.' };
+        console.warn('⚠️ Invalid HTTPS URL format, setting to null');
+        return { valid: true, sanitized: null }; // Don't block, just nullify
       }
     }
 
-    // Reject anything else (security)
-    return { 
-      valid: false, 
-      message: 'Cover image must be a base64 data URI or HTTPS URL.' 
-    };
+    // Invalid format - don't block, just set to null
+    console.warn('⚠️ Unrecognized image format, setting to null');
+    return { valid: true, sanitized: null };
   }
 
-  // Create new book - WITH IMAGE VALIDATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: CREATE BOOK (with safe image handling)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   static async createBook(req, res) {
     try {
       const {
@@ -363,12 +304,18 @@ class BookController {
         });
       }
 
-      // SECURITY: Validate cover image (base64 or URL)
+      // ═══════════════════════════════════════════════════════════════════════
+      // SECURITY: Validate and sanitize cover image
+      // ═══════════════════════════════════════════════════════════════════════
       const imageValidation = BookController.validateCoverImage(cover_image);
-      if (!imageValidation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: imageValidation.message
+      
+      // Use sanitized version (HTTP→HTTPS, invalid→null)
+      const sanitizedCoverImage = imageValidation.sanitized;
+      
+      if (sanitizedCoverImage !== cover_image) {
+        console.log('📸 Image sanitized:', {
+          original: cover_image?.substring(0, 50),
+          sanitized: sanitizedCoverImage?.substring(0, 50) || 'null'
         });
       }
 
@@ -384,13 +331,13 @@ class BookController {
       // Get user ID from authenticated user (set by authenticate middleware)
       const userId = req.user?.userId || null;
 
-      // Create the book
+      // Create the book with sanitized image
       const bookId = await Book.create({
         title,
         author,
         isbn,
         quantity: parseInt(quantity) || 1,
-        cover_image,
+        cover_image: sanitizedCoverImage, // Use sanitized version
         category,
         publisher,
         published_year,
@@ -431,6 +378,15 @@ class BookController {
       }
     } catch (error) {
       console.error('❌ Create book error:', error);
+      
+      // Handle duplicate ISBN error specifically
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({
+          success: false,
+          message: 'A book with this ISBN already exists'
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: 'Failed to create book',
@@ -439,7 +395,10 @@ class BookController {
     }
   }
 
-  // Update book - WITH IMAGE VALIDATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADED: UPDATE BOOK (with safe image handling)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   static async updateBook(req, res) {
     try {
       const { id } = req.params;
@@ -464,14 +423,11 @@ class BookController {
         });
       }
 
-      // SECURITY: Validate cover image (base64 or URL)
+      // ═══════════════════════════════════════════════════════════════════════
+      // SECURITY: Validate and sanitize cover image
+      // ═══════════════════════════════════════════════════════════════════════
       const imageValidation = BookController.validateCoverImage(cover_image);
-      if (!imageValidation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: imageValidation.message
-        });
-      }
+      const sanitizedCoverImage = imageValidation.sanitized;
 
       // Check if book exists
       const existingBook = await Book.getById(id);
@@ -501,7 +457,7 @@ class BookController {
         author,
         isbn,
         quantity: parseInt(quantity) || 1,
-        cover_image,
+        cover_image: sanitizedCoverImage, // Use sanitized version
         category,
         publisher,
         published_year,
